@@ -68,12 +68,19 @@ export default function LogsPage() {
                   <td className="px-4 py-2">
                     <span
                       className={
-                        log.type === "login"
-                          ? "rounded-full bg-green-900/50 px-2 py-1 text-xs text-green-300"
-                          : "rounded-full bg-red-900/50 px-2 py-1 text-xs text-red-300"
+                        "rounded-full px-2 py-1 text-xs " +
+                        (log.type === "login"
+                          ? "bg-green-900/50 text-green-300"
+                          : log.type === "break"
+                            ? "bg-amber-900/50 text-amber-300"
+                            : "bg-red-900/50 text-red-300")
                       }
                     >
-                      {log.type === "login" ? "Log In" : "Log Out"}
+                      {log.type === "login"
+                        ? "Log In"
+                        : log.type === "break"
+                          ? "Break"
+                          : "Log Out"}
                     </span>
                   </td>
                   <td className="px-4 py-2 text-neutral-400">

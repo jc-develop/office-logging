@@ -11,6 +11,31 @@ type Status =
   | { kind: "success"; message: string }
   | { kind: "error"; message: string };
 
+const ACTION_LABEL: Record<LogType, string> = {
+  login: "Log In",
+  logout: "Log Out",
+  break: "Break",
+};
+
+const ACTION_VERB: Record<LogType, string> = {
+  login: "logged in",
+  logout: "logged out",
+  break: "took a break",
+};
+
+// Tailwind classes per action for the solid buttons and the badge.
+const ACTION_BTN: Record<LogType, string> = {
+  login: "bg-green-600 hover:bg-green-500",
+  logout: "bg-red-600 hover:bg-red-500",
+  break: "bg-amber-600 hover:bg-amber-500",
+};
+
+const ACTION_BADGE: Record<LogType, string> = {
+  login: "bg-green-900/50 text-green-300",
+  logout: "bg-red-900/50 text-red-300",
+  break: "bg-amber-900/50 text-amber-300",
+};
+
 export default function LogForm() {
   // Step 1 = choose action, Step 2 = fill in details.
   const [action, setAction] = useState<LogType | null>(null);
@@ -20,7 +45,7 @@ export default function LogForm() {
 
   const saving = status.kind === "saving";
   const canSave = name.trim().length > 0 && !!image && !saving;
-  const actionLabel = action === "login" ? "Log In" : "Log Out";
+  const actionLabel = action ? ACTION_LABEL[action] : "";
 
   function chooseAction(type: LogType) {
     setAction(type);
@@ -41,7 +66,7 @@ export default function LogForm() {
       await createLog(name, action, image!);
       setStatus({
         kind: "success",
-        message: `${name.trim()} ${action === "login" ? "logged in" : "logged out"} successfully.`,
+        message: `${name.trim()} ${ACTION_VERB[action]} successfully.`,
       });
       // Reset back to the start after a short moment.
       setTimeout(reset, 2500);
@@ -68,6 +93,13 @@ export default function LogForm() {
           </button>
           <button
             type="button"
+            onClick={() => chooseAction("break")}
+            className="flex-1 rounded-xl bg-amber-600 px-4 py-6 text-lg font-semibold text-white transition hover:bg-amber-500"
+          >
+            Break
+          </button>
+          <button
+            type="button"
             onClick={() => chooseAction("logout")}
             className="flex-1 rounded-xl bg-red-600 px-4 py-6 text-lg font-semibold text-white transition hover:bg-red-500"
           >
@@ -83,11 +115,7 @@ export default function LogForm() {
     <div className="flex w-full max-w-lg flex-col gap-6 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-6 shadow-xl">
       <div className="flex items-center justify-between">
         <span
-          className={
-            action === "login"
-              ? "rounded-full bg-green-900/50 px-3 py-1 text-sm font-medium text-green-300"
-              : "rounded-full bg-red-900/50 px-3 py-1 text-sm font-medium text-red-300"
-          }
+          className={`rounded-full px-3 py-1 text-sm font-medium ${ACTION_BADGE[action]}`}
         >
           {actionLabel}
         </span>
@@ -124,14 +152,13 @@ export default function LogForm() {
         type="button"
         onClick={handleSave}
         disabled={!canSave}
-        className={
-          (action === "login"
-            ? "bg-green-600 hover:bg-green-500"
-            : "bg-red-600 hover:bg-red-500") +
-          " rounded-lg px-4 py-3 font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-        }
+        className={`${ACTION_BTN[action]} rounded-lg px-4 py-3 font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50`}
       >
-        {saving ? "Saving…" : `Save and ${actionLabel}`}
+        {saving
+          ? "Saving…"
+          : action === "break"
+            ? "Save Break"
+            : `Save and ${actionLabel}`}
       </button>
 
       {status.kind === "success" && (

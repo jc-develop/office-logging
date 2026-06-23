@@ -7,7 +7,7 @@
 create table if not exists public.logs (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
-  type       text not null check (type in ('login', 'logout')),
+  type       text not null check (type in ('login', 'logout', 'break')),
   image_url  text not null,
   created_at timestamptz not null default now()
 );
