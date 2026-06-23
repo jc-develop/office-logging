@@ -15,8 +15,8 @@ create table if not exists public.logs (
 create index if not exists logs_created_at_idx on public.logs (created_at desc);
 
 -- 2. Row Level Security ----------------------------------------
--- This is a kiosk-style app with no auth, so we allow the public
--- (anon) key to insert and read. Tighten these for production.
+-- The kiosk inserts anonymously (anon key), but reading logs is
+-- restricted to authenticated admins only.
 alter table public.logs enable row level security;
 
 create policy "Anyone can insert logs"
@@ -24,9 +24,9 @@ create policy "Anyone can insert logs"
   to anon, authenticated
   with check (true);
 
-create policy "Anyone can read logs"
+create policy "Admins can read logs"
   on public.logs for select
-  to anon, authenticated
+  to authenticated
   using (true);
 
 -- 3. Storage bucket for photos ---------------------------------
