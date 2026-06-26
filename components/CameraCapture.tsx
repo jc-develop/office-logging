@@ -10,8 +10,8 @@ interface CameraCaptureProps {
 }
 
 const videoConstraints = {
-  width: 480,
-  height: 360,
+  width: { ideal: 1280 },
+  height: { ideal: 960 },
   facingMode: "user",
 };
 
@@ -74,8 +74,8 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           <Webcam
             ref={webcamRef}
             audio={false}
-            screenshotFormat="image/jpeg"
-            screenshotQuality={0.9}
+            screenshotFormat="image/png"
+            screenshotQuality={1}
             mirrored
             videoConstraints={videoConstraints}
             onUserMedia={() => {
@@ -96,8 +96,8 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
         {/* Countdown Overlay */}
         {countdown !== null && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-brand-blue-900/80 backdrop-blur-sm animate-fadeIn">
-            <span className="text-5xl font-display font-extrabold text-white tracking-widest animate-bounceScale">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-brand-blue-950/35 animate-fadeIn">
+            <span className="rounded-2xl bg-brand-blue-950/80 px-8 py-5 text-5xl font-display font-extrabold text-white tracking-widest shadow-lg animate-bounceScale">
               {countdown === 0 ? "SMILE! 📸" : countdown}
             </span>
           </div>
