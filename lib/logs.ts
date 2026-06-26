@@ -32,12 +32,15 @@ const STATE_LABELS: Record<string, string> = {
 function assertAllowedAction(currentState: string, type: LogType, name: string, role?: UserRole): void {
   const allowed = ALLOWED_TRANSITIONS[currentState];
   if (!allowed?.includes(type)) {
+    if (currentState === "unknown") {
+      throw new Error(`${name} not found. Contact an administrator.`);
+    }
     throw new Error(
       `${name} can't ${ACTION_LABELS[type]} (currently ${STATE_LABELS[currentState] ?? currentState}).`
     );
   }
-  if (currentState === "unknown" && type === "login" && role !== "guest") {
-    throw new Error(`${name} is not registered. Only guests can be created on first login.`);
+  if (currentState === "unknown" && type === "login" && role !== "guest" && role !== "client") {
+    throw new Error(`${name} is not registered. Only guests and clients can be created on first login.`);
   }
 }
 
