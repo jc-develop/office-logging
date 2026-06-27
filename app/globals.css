@@ -28,6 +28,18 @@
   
   --color-hero-grad-a: #F6FAFF;
   --color-hero-grad-b: #EAF2FF;
+
+  --color-action-login: #059669;
+  --color-action-login-light: #D1FAE5;
+  --color-action-login-bg: #ECFDF5;
+
+  --color-action-break: #D97706;
+  --color-action-break-light: #FEF3C7;
+  --color-action-break-bg: #FFFBEB;
+
+  --color-action-logout: #DC2626;
+  --color-action-logout-light: #FEE2E2;
+  --color-action-logout-bg: #FEF2F2;
 }
 
 :root {

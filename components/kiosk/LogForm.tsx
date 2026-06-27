@@ -23,15 +23,15 @@ const ACTION_LABEL: Record<LogType, string> = {
 };
 
 const ACTION_GRADIENT: Record<LogType, string> = {
-  login: "from-brand-blue-600 to-brand-blue-500 shadow-brand-blue-100 hover:from-brand-blue-500 hover:to-brand-blue-400",
-  logout: "from-brand-blue-600 to-brand-blue-500 shadow-brand-blue-100 hover:from-brand-blue-500 hover:to-brand-blue-400",
-  break: "from-brand-blue-500 to-brand-blue-400 shadow-brand-blue-100 hover:from-brand-blue-400 hover:to-brand-blue-300",
+  login: "from-emerald-600 to-emerald-500 shadow-action-login-light hover:from-emerald-500 hover:to-emerald-400",
+  logout: "from-red-600 to-red-500 shadow-action-logout-light hover:from-red-500 hover:to-red-400",
+  break: "from-amber-500 to-amber-400 shadow-action-break-light hover:from-amber-400 hover:to-amber-300",
 };
 
 const ACTION_BADGE: Record<LogType, string> = {
-  login: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-  logout: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-  break: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+  login: "bg-action-login-bg border border-action-login-light text-action-login",
+  logout: "bg-action-logout-bg border border-action-logout-light text-action-logout",
+  break: "bg-action-break-bg border border-action-break-light text-action-break",
 };
 
 const GREETINGS = [
