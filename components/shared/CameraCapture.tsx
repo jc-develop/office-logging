@@ -616,7 +616,7 @@ function LiveSingleFaceEffect({ effect, face }: { effect: FaceEffect; face: Face
         {points.map(([left, top, size], index) => (
           <span
             key={`${left}-${top}-${index}`}
-            className="absolute block rotate-45 bg-white shadow-[0_0_14px_rgba(74,114,241,0.7)]"
+            className="absolute block bg-white shadow-[0_0_14px_rgba(74,114,241,0.7)]"
             style={{
               left: `${left}%`,
               top: `${top}%`,
