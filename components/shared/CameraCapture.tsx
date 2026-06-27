@@ -5,7 +5,6 @@ import Webcam from "react-webcam";
 import { playTickSound, playShutterSound } from "@/lib/audio";
 
 interface CameraCaptureProps {
-  /** Called with the captured base64 data URL, or null when retaken/cleared. */
   onCapture: (image: string | null) => void;
 }
 
@@ -25,10 +24,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
 
   const startCountdown = useCallback(() => {
     if (countdown !== null) return;
-    
+
     setCountdown(3);
     playTickSound();
-    
+
     let current = 3;
     const interval = setInterval(() => {
       current -= 1;
@@ -37,11 +36,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         playTickSound();
       } else {
         clearInterval(interval);
-        setCountdown(0); // Show "Smile! 📸"
+        setCountdown(0);
         playShutterSound();
         setFlash(true);
-        
-        // Take screenshot
+
         const shot = webcamRef.current?.getScreenshot();
         setTimeout(() => {
           setFlash(false);
@@ -89,12 +87,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           />
         )}
 
-        {/* Camera Flash Overlay */}
         {flash && (
           <div className="absolute inset-0 bg-white z-30 animate-flash pointer-events-none" />
         )}
 
-        {/* Countdown Overlay */}
         {countdown !== null && (
           <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-brand-blue-950/35 animate-fadeIn">
             <span className="rounded-2xl bg-brand-blue-950/80 px-8 py-5 text-5xl font-display font-extrabold text-white tracking-widest shadow-lg animate-bounceScale">
@@ -109,7 +105,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
             Initializing lens…
           </div>
         )}
-        
+
         {error && (
           <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-brand-blue-700 bg-brand-blue-50 border border-brand-blue-100">
             ⚠️ {error}

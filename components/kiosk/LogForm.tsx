@@ -1,0 +1,269 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import CameraCapture from "@/components/shared/CameraCapture";
+import ActionSelector from "./ActionSelector";
+import PersonForm from "./PersonForm";
+import SessionGreeting from "./SessionGreeting";
+import SuccessCard from "./SuccessCard";
+import { calculateStreak, createMultipleLogs, getLogs, getNameSuggestions } from "@/lib/logs";
+import { IS_MOCK, type LogEntry, type LogType, type UserRole } from "@/lib/supabase";
+import { playClickSound, playErrorSound, playSuccessSound } from "@/lib/audio";
+
+type Status =
+  | { kind: "idle" }
+  | { kind: "saving" }
+  | { kind: "success"; message: string; welcomeCards: Array<{ name: string; welcomeMessage: string; badges: Array<{ name: string; icon: string; style: string }> }> }
+  | { kind: "error"; message: string };
+
+const ACTION_LABEL: Record<LogType, string> = {
+  login: "Log In",
+  logout: "Log Out",
+  break: "Break",
+};
+
+const ACTION_GRADIENT: Record<LogType, string> = {
+  login: "from-brand-blue-600 to-brand-blue-500 shadow-brand-blue-100 hover:from-brand-blue-500 hover:to-brand-blue-400",
+  logout: "from-brand-blue-600 to-brand-blue-500 shadow-brand-blue-100 hover:from-brand-blue-500 hover:to-brand-blue-400",
+  break: "from-brand-blue-500 to-brand-blue-400 shadow-brand-blue-100 hover:from-brand-blue-400 hover:to-brand-blue-300",
+};
+
+const ACTION_BADGE: Record<LogType, string> = {
+  login: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+  logout: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+  break: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+};
+
+const GREETINGS = [
+  "🚀 Ready to build something amazing today?",
+  "💡 Great products are made one check-in at a time!",
+  "🔥 Innovation and passion fuel our growth here!",
+  "🌟 Welcome back, builder! Let's crush today's goals!",
+  "⚡ Stand out, build fast, and stay curious!",
+  "🧠 Work hard, collaborate, and make an impact!",
+];
+
+export default function LogForm() {
+  const [action, setAction] = useState<LogType | null>(null);
+  const [people, setPeople] = useState<Array<{ name: string; role: UserRole }>>([{ name: "", role: "intern" }]);
+  const [image, setImage] = useState<string | null>(null);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
+  const [suggestions, setSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
+  const [currentGreeting, setCurrentGreeting] = useState("");
+
+  const greetingMatch = currentGreeting.match(/^([^\w\s]+)?\s*(.*)$/);
+  const greetingEmoji = greetingMatch ? greetingMatch[1] : "";
+  const greetingText = greetingMatch ? greetingMatch[2] : currentGreeting;
+
+  useEffect(() => {
+    setCurrentGreeting(GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
+  }, [action]);
+
+  useEffect(() => {
+    getLogs(500)
+      .then(setAllLogs)
+      .catch((error) => console.error("Failed to load logs:", error));
+
+    getNameSuggestions()
+      .then(setSuggestions)
+      .catch((error) => console.error("Failed to load suggestions:", error));
+  }, [action]);
+
+  const saving = status.kind === "saving";
+  const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
+  const actionLabel = action ? ACTION_LABEL[action] : "";
+
+  function chooseAction(type: LogType) {
+    playClickSound();
+    setAction(type);
+    setStatus({ kind: "idle" });
+  }
+
+  function reset() {
+    playClickSound();
+    setAction(null);
+    setPeople([{ name: "", role: "intern" }]);
+    setImage(null);
+    setStatus({ kind: "idle" });
+  }
+
+  function addPerson() {
+    playClickSound();
+    setPeople((current) => [...current, { name: "", role: "intern" }]);
+  }
+
+  function removePerson(index: number) {
+    playClickSound();
+    setPeople((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
+  function updatePersonName(index: number, value: string) {
+    setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { ...person, name: value } : person)));
+  }
+
+  function updatePersonRole(index: number, role: UserRole) {
+    playClickSound();
+    setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { ...person, role } : person)));
+  }
+
+  function handleSelectSuggestion(index: number, suggestion: { name: string; role: UserRole }) {
+    setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { name: suggestion.name, role: suggestion.role } : person)));
+  }
+
+  async function handleSave() {
+    if (!canSave || !action || !image) return;
+
+    setStatus({ kind: "saving" });
+
+    try {
+      const createdLogs = await createMultipleLogs(people, action, image);
+      const updatedLogs = [...createdLogs, ...allLogs];
+      setAllLogs(updatedLogs);
+
+      const welcomeCards = people.map((person) => {
+        const name = person.name.trim();
+        const badges: Array<{ name: string; icon: string; style: string }> = [];
+        const streak = calculateStreak(updatedLogs, name);
+
+        const welcomeMessage =
+          action === "login"
+            ? `Good to see you, ${name}! Let's write some beautiful code today. 🚀`
+            : action === "break"
+              ? `Enjoy your break, ${name}! Go grab a hot drink and relax. ☕`
+              : `Great work today, ${name}! Rest up and have a relaxing evening. 🌙`;
+
+        if (streak >= 5 || streak >= 3) {
+          badges.push({
+            name: `${streak}-Day Streak`,
+            icon: "🔥",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        } else if (streak > 0 && action === "login") {
+          badges.push({
+            name: `${streak}d Streak`,
+            icon: "⚡",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        }
+
+        const hour = new Date().getHours();
+        if (action === "login" && hour < 9) {
+          badges.push({
+            name: "Early Bird",
+            icon: "🌅",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        }
+
+        if (action === "logout" && hour >= 18) {
+          badges.push({
+            name: "Night Owl",
+            icon: "🌃",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        }
+
+        if (people.length > 1) {
+          badges.push({
+            name: "Team Player",
+            icon: "👥",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        }
+
+        return { name, welcomeMessage, badges };
+      });
+
+      playSuccessSound();
+      setStatus({
+        kind: "success",
+        message: action === "login" ? "Logged In Successfully!" : action === "break" ? "Break Logged!" : "Logged Out Successfully!",
+        welcomeCards,
+      });
+
+      setTimeout(reset, 5000);
+    } catch (error) {
+      playErrorSound();
+      setStatus({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Something went wrong.",
+      });
+    }
+  }
+
+  if (!action) {
+    return (
+      <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+        <div className="mx-auto rounded-full bg-brand-blue-50 border border-brand-blue-200 px-3 py-1 text-[11px] font-semibold text-brand-blue-700 tracking-wide shadow-sm">
+          {IS_MOCK ? "⚠️ Running in Local Demo Mode" : "⚡ Live Database Connected"}
+        </div>
+
+        {currentGreeting && (
+          <SessionGreeting emoji={greetingEmoji} text={greetingText} variant="hero" />
+        )}
+
+        <p className="text-center text-xs font-bold uppercase tracking-wider text-ink-400">Choose Session Action</p>
+
+        <ActionSelector onSelect={chooseAction} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <div className="flex items-center justify-between border-b border-surface-100 pb-4">
+        <span className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${ACTION_BADGE[action]}`}>{actionLabel}</span>
+        <button type="button" onClick={reset} disabled={saving} className="cursor-pointer text-xs font-bold text-ink-500 transition hover:text-brand-blue-600 disabled:opacity-30">
+          ← Change Action
+        </button>
+      </div>
+
+      {status.kind === "success" ? (
+        <SuccessCard message={status.message} welcomeCards={status.welcomeCards} />
+      ) : (
+        <>
+          {currentGreeting && (
+            <SessionGreeting emoji={greetingEmoji} text={greetingText} variant="inline" />
+          )}
+
+          <PersonForm
+            people={people}
+            allLogs={allLogs}
+            suggestions={suggestions}
+            saving={saving}
+            onUpdateName={updatePersonName}
+            onUpdateRole={updatePersonRole}
+            onRemove={removePerson}
+            onAdd={addPerson}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Webcam Verification</label>
+            <CameraCapture onCapture={setImage} />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave}
+            className={`w-full rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer py-4 font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
+          >
+            {saving ? "Logging session details…" : `Save & Complete ${actionLabel}`}
+          </button>
+
+          {status.kind === "error" && (
+            <p className="rounded-xl border border-brand-blue-200 bg-brand-blue-50 px-4 py-3 text-center text-xs font-bold text-brand-blue-700 animate-fadeIn">
+              ⚠️ {status.message}
+            </p>
+          )}
+
+          <div className="flex items-center justify-center gap-2 border-t border-surface-100 pt-4 text-center text-[10px] font-semibold text-ink-400">
+            🔒 Data Privacy Compliant: Photos are processed locally for security logs and are never shared.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
