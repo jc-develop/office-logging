@@ -108,7 +108,6 @@ export default function PersonForm({
                 {activeInputIdx === index && filteredSuggestions.length > 0 && (
                   <SuggestionsDropdown
                     suggestions={filteredSuggestions}
-                    selectedRole={person.role}
                     onSelect={(s) => handleSelectSuggestion(index, s)}
                   />
                 )}
