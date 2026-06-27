@@ -1,9 +1,18 @@
 "use client";
 
+let sharedContext: AudioContext | null = null;
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
-  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-  return AudioCtx ? new AudioCtx() : null;
+  if (sharedContext?.state === "closed") {
+    sharedContext = null;
+  }
+  if (!sharedContext) {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return null;
+    sharedContext = new AudioCtx();
+  }
+  return sharedContext;
 }
 
 export function playClickSound() {

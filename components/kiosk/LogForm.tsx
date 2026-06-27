@@ -221,10 +221,16 @@ export default function LogForm() {
               ? `Enjoy your break, ${name}! Go grab a hot drink and relax. ☕`
               : `Great work today, ${name}! Rest up and have a relaxing evening. 🌙`;
 
-        if (streak >= 5 || streak >= 3) {
+        if (streak >= 5) {
           badges.push({
             name: `${streak}-Day Streak`,
             icon: "🔥",
+            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
+          });
+        } else if (streak >= 3) {
+          badges.push({
+            name: `${streak}-Day Streak`,
+            icon: "⚡",
             style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
           });
         } else if (streak > 0 && action === "login") {
