@@ -246,8 +246,13 @@ function saveMockLogs(logs: LogEntry[]) {
 function getMockUsers(): User[] {
   if (typeof window === "undefined") return [];
   const stored = localStorage.getItem("office_users");
-  const usersByName = new Map<string, User>();
 
+  if (stored) {
+    return JSON.parse(stored) as User[];
+  }
+
+  // First load: derive from logs and persist
+  const usersByName = new Map<string, User>();
   for (const log of getMockLogs()) {
     const key = normalizeName(log.name);
     if (!usersByName.has(key)) {
@@ -259,13 +264,6 @@ function getMockUsers(): User[] {
       });
     }
   }
-
-  if (stored) {
-    for (const user of JSON.parse(stored) as User[]) {
-      usersByName.set(normalizeName(user.name), user);
-    }
-  }
-
   const users = Array.from(usersByName.values());
   saveMockUsers(users);
   return users;
