@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createLog, createMultipleLogs, getNameSuggestions } from "../lib/logs";
+import {
+  createLog,
+  createMultipleLogs,
+  getNameSuggestions,
+  registerStaffOrIntern,
+  renameUser,
+  deleteUser,
+  updateUserRole,
+  getStaffInternUsers,
+  getLogs,
+} from "../lib/logs";
 
 const DATA_URL = "data:image/jpeg;base64,/9j/4AAQSkZJRg==";
 
@@ -173,6 +183,151 @@ describe("state transitions", () => {
       await expect(
         createLog("Bob Smith", "logout", DATA_URL, "intern")
       ).rejects.toThrow("not registered as intern");
+    });
+  });
+
+  describe("user CRUD operations", () => {
+    describe("registerStaffOrIntern", () => {
+      it("registers a new staff member", async () => {
+        const user = await registerStaffOrIntern("Test Staff", "staff");
+        expect(user.name).toBe("Test Staff");
+        expect(user.role).toBe("staff");
+        expect(user.state).toBe("out_of_office");
+
+        const users = await getStaffInternUsers();
+        expect(users).toEqual(
+          expect.arrayContaining([expect.objectContaining({ name: "Test Staff", role: "staff" })])
+        );
+      });
+
+      it("registers a new intern", async () => {
+        const user = await registerStaffOrIntern("Test Intern", "intern");
+        expect(user.name).toBe("Test Intern");
+        expect(user.role).toBe("intern");
+        expect(user.state).toBe("out_of_office");
+      });
+
+      it("rejects empty name", async () => {
+        await expect(
+          registerStaffOrIntern("", "staff")
+        ).rejects.toThrow("Please enter a name");
+      });
+
+      it("rejects duplicate registration", async () => {
+        await registerStaffOrIntern("Unique Name", "staff");
+        await expect(
+          registerStaffOrIntern("Unique Name", "intern")
+        ).rejects.toThrow("already exists");
+      });
+    });
+
+    describe("renameUser", () => {
+      it("renames a user", async () => {
+        await registerStaffOrIntern("Jane Doe", "staff");
+        const renamed = await renameUser("Jane Doe", "Jane Smith");
+        expect(renamed.name).toBe("Jane Smith");
+        expect(renamed.role).toBe("staff");
+
+        const users = await getStaffInternUsers();
+        expect(users.find((u) => u.name === "Jane Smith")).toBeTruthy();
+        expect(users.find((u) => u.name === "Jane Doe")).toBeFalsy();
+      });
+
+      it("preserves old log entry names as historical archive after rename", async () => {
+        await registerStaffOrIntern("History Name", "staff");
+        await createLog("History Name", "login", DATA_URL, "staff");
+        await createLog("History Name", "logout", DATA_URL, "staff");
+
+        await renameUser("History Name", "History Renamed");
+
+        const logsAfter = await getLogs(500);
+        const oldLogs = logsAfter.filter((l) => l.name === "History Name");
+        expect(oldLogs).toHaveLength(2);
+        oldLogs.forEach((l) => {
+          expect(l.name).toBe("History Name");
+        });
+
+        const users = await getStaffInternUsers();
+        expect(users.find((u) => u.name === "History Renamed")).toBeTruthy();
+        expect(users.find((u) => u.name === "History Name")).toBeFalsy();
+      });
+
+      it("does not create a duplicate user after rename", async () => {
+        await registerStaffOrIntern("John Original", "staff");
+        await renameUser("John Original", "John Renamed");
+
+        const users = await getStaffInternUsers();
+        const matches = users.filter((u) =>
+          ["John Original", "John Renamed"].includes(u.name)
+        );
+        expect(matches).toHaveLength(1);
+        expect(matches[0].name).toBe("John Renamed");
+      });
+
+      it("rejects rename to an existing name", async () => {
+        await registerStaffOrIntern("User One", "staff");
+        await registerStaffOrIntern("User Two", "intern");
+        await expect(
+          renameUser("User One", "User Two")
+        ).rejects.toThrow("already exists");
+      });
+
+      it("rejects rename of non-existent user", async () => {
+        await expect(
+          renameUser("Nobody", "Somebody")
+        ).rejects.toThrow("not found");
+      });
+
+      it("rejects rename to the same name", async () => {
+        await registerStaffOrIntern("Same Name", "staff");
+        await expect(
+          renameUser("Same Name", "Same Name")
+        ).rejects.toThrow("same as the current name");
+      });
+    });
+
+    describe("deleteUser", () => {
+      it("deletes a user", async () => {
+        await registerStaffOrIntern("Delete Me", "staff");
+        await deleteUser("Delete Me");
+
+        const users = await getStaffInternUsers();
+        expect(users.find((u) => u.name === "Delete Me")).toBeFalsy();
+      });
+
+      it("rejects delete of non-existent user", async () => {
+        await expect(
+          deleteUser("NonExistent")
+        ).rejects.toThrow("not found");
+      });
+
+      it("only removes the targeted user", async () => {
+        await registerStaffOrIntern("Kept User", "staff");
+        await registerStaffOrIntern("Removed User", "intern");
+        await deleteUser("Removed User");
+
+        const users = await getStaffInternUsers();
+        expect(users.find((u) => u.name === "Kept User")).toBeTruthy();
+        expect(users.find((u) => u.name === "Removed User")).toBeFalsy();
+      });
+    });
+
+    describe("updateUserRole", () => {
+      it("changes a user role from staff to intern", async () => {
+        await registerStaffOrIntern("Role Change", "staff");
+        const updated = await updateUserRole("Role Change", "intern");
+        expect(updated.role).toBe("intern");
+
+        const users = await getStaffInternUsers();
+        const match = users.find((u) => u.name === "Role Change");
+        expect(match!.role).toBe("intern");
+      });
+
+      it("rejects update of non-existent user", async () => {
+        await expect(
+          updateUserRole("NonExistent", "staff")
+        ).rejects.toThrow("not found");
+      });
     });
   });
 
