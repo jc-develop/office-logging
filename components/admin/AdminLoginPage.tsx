@@ -9,6 +9,7 @@ import { createActivityLog } from "@/lib/logs";
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +36,25 @@ export default function AdminLoginPage() {
     }
   }, [showCaptcha]);
 
+  function getMockCredentials(): Array<{ email: string; password: string }> {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem("mock_admin_credentials");
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  function saveMockCredential(email: string, password: string) {
+    const creds = getMockCredentials();
+    creds.push({ email, password });
+    localStorage.setItem("mock_admin_credentials", JSON.stringify(creds));
+  }
+
+  function isValidMockCredential(email: string, password: string): boolean {
+    if (email === "admin@startuplab.com" && password === "admin123") return true;
+    return getMockCredentials().some(
+      (c) => c.email === email && c.password === password
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     playClickSound();
@@ -42,6 +62,52 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     const trimmedEmail = email.trim();
+
+    if (mode === "signup") {
+      if (!trimmedEmail || password.length < 6) {
+        setLoading(false);
+        playErrorSound();
+        setError("Email is required and password must be at least 6 characters.");
+        return;
+      }
+
+      if (IS_MOCK) {
+        const existing = getMockCredentials().some((c) => c.email === trimmedEmail);
+        if (existing || trimmedEmail === "admin@startuplab.com") {
+          setLoading(false);
+          playErrorSound();
+          setError("An account with this email already exists.");
+          return;
+        }
+
+        saveMockCredential(trimmedEmail, password);
+        localStorage.setItem("mock_admin_session", "true");
+        setLoading(false);
+        playSuccessSound();
+        await createActivityLog("SIGN_UP", `Admin account created: ${trimmedEmail} (Local Mock)`);
+        router.push("/logs");
+        return;
+      }
+
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: trimmedEmail,
+        password,
+      });
+      setLoading(false);
+
+      if (signUpError) {
+        playErrorSound();
+        setError(signUpError.message);
+        await createActivityLog("FAILED_SIGN_UP", `Sign-up failed: ${trimmedEmail}. Error: ${signUpError.message}`);
+        return;
+      }
+
+      playSuccessSound();
+      await createActivityLog("SIGN_UP", `Admin account created: ${trimmedEmail}`);
+      setError("Account created! Check your email for a confirmation link, then sign in.");
+      setMode("signin");
+      return;
+    }
 
     if (showCaptcha) {
       if (parseInt(captchaInput) !== captchaAnswer) {
@@ -57,7 +123,7 @@ export default function AdminLoginPage() {
     if (IS_MOCK) {
       setTimeout(async () => {
         setLoading(false);
-        if (trimmedEmail === "admin@startuplab.com" && password === "admin123") {
+        if (isValidMockCredential(trimmedEmail, password)) {
           playSuccessSound();
           if (typeof window !== "undefined") {
             localStorage.setItem("mock_admin_session", "true");
@@ -67,7 +133,7 @@ export default function AdminLoginPage() {
         } else {
           playErrorSound();
           setFailedAttempts((prev) => prev + 1);
-          setError("Invalid email or password. Hint for local testing: admin@startuplab.com / admin123");
+          setError("Invalid email or password.");
           await createActivityLog("FAILED_SIGN_IN", `Failed login attempt: ${trimmedEmail} (Local Mock)`);
         }
       }, 800);
@@ -102,8 +168,29 @@ export default function AdminLoginPage() {
           Admin Portal
         </h1>
         <p className="mt-2 text-sm text-ink-500 max-w-sm mx-auto font-medium">
-          Sign in to audit database log entries.
+          {mode === "signin" ? "Sign in to audit database log entries." : "Create an admin account to get started."}
         </p>
+      </div>
+
+      <div className="z-10 flex w-full max-w-sm rounded-[18px] border border-surface-200 bg-white p-1 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn mb-4">
+        <button
+          type="button"
+          onClick={() => { setMode("signin"); setError(null); }}
+          className={`flex-1 rounded-[14px] py-2.5 text-xs font-bold uppercase tracking-wider transition ${
+            mode === "signin" ? "bg-brand-blue-600 text-white shadow-sm" : "text-ink-500 hover:text-ink-700"
+          }`}
+        >
+          Sign In
+        </button>
+        <button
+          type="button"
+          onClick={() => { setMode("signup"); setError(null); }}
+          className={`flex-1 rounded-[14px] py-2.5 text-xs font-bold uppercase tracking-wider transition ${
+            mode === "signup" ? "bg-brand-blue-600 text-white shadow-sm" : "text-ink-500 hover:text-ink-700"
+          }`}
+        >
+          Create Account
+        </button>
       </div>
 
       <form
@@ -125,7 +212,7 @@ export default function AdminLoginPage() {
             required
             autoComplete="email"
             disabled={loading}
-            placeholder="admin@startuplab.com"
+            placeholder={mode === "signin" ? "admin@startuplab.com" : "you@example.com"}
             className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
           />
         </div>
@@ -143,7 +230,8 @@ export default function AdminLoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            autoComplete="current-password"
+            minLength={6}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
             disabled={loading}
             placeholder="••••••••"
             className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
@@ -177,11 +265,13 @@ export default function AdminLoginPage() {
           </p>
         )}
 
-        {IS_MOCK && (
+        {IS_MOCK && mode === "signin" && (
           <div className="rounded-xl bg-brand-blue-50 border border-brand-blue-100 p-3.5 text-[11px] text-brand-blue-600 font-semibold text-center leading-relaxed">
-            💡 Local demo configuration. Sign in with:
+            💡 Local demo. Default sign in:
             <br />
             <span className="text-ink-900 font-bold">admin@startuplab.com</span> / <span className="text-ink-900 font-bold">admin123</span>
+            <br />
+            Or use any account you created via <span className="text-ink-900 font-bold">Create Account</span>.
           </div>
         )}
 
@@ -190,7 +280,11 @@ export default function AdminLoginPage() {
           disabled={loading}
           className="w-full rounded-xl bg-brand-blue-600 py-3.5 font-bold text-white shadow-md shadow-brand-blue-100 transition duration-200 hover:bg-brand-blue-500 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
         >
-          {loading ? "Verifying Credentials…" : "Sign In"}
+          {loading
+            ? "Please wait…"
+            : mode === "signin"
+              ? "Sign In"
+              : "Create Account"}
         </button>
       </form>
 

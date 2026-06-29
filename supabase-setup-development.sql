@@ -25,7 +25,7 @@ create table if not exists public.admin_activity_logs (
   details    text not null,
   created_at timestamptz not null default now()
 );
-h
+
 create index if not exists admin_activity_logs_created_at_idx on public.admin_activity_logs (created_at desc);
 
 -- 3. Users table ----------------------------------------------
