@@ -46,9 +46,9 @@ create policy "Anyone can insert logs"
   to anon, authenticated
   with check (true);
 
-create policy "Admins can read logs"
+create policy "Anyone can read logs"
   on public.logs for select
-  to authenticated
+  to anon, authenticated
   using (true);
 
 alter table public.users enable row level security;
@@ -63,9 +63,9 @@ create policy "Anyone can update users"
   to anon, authenticated
   using (true);
 
-create policy "Admins can read users"
+create policy "Anyone can read users"
   on public.users for select
-  to authenticated
+  to anon, authenticated
   using (true);
 
 alter table public.admin_activity_logs enable row level security;
