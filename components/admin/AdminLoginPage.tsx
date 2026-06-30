@@ -178,6 +178,14 @@ export default function AdminLoginPage() {
           />
         </div>
 
+        <Link
+          href="/login/forgot-password"
+          onClick={playClickSound}
+          className="-mt-2 text-right text-xs font-bold text-ink-500 hover:text-brand-blue-600 transition"
+        >
+          Forgot Password?
+        </Link>
+
         {showCaptcha && (
           <div className="rounded-xl border border-brand-blue-100 bg-brand-blue-50/30 p-3.5 animate-fadeIn">
             <label
