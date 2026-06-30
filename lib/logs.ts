@@ -1,4 +1,4 @@
-import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
+import { supabase, type LogEntry, type LogType, type UserRole, type UserState, type AdminConfig, type AdminActivityLog, type User, IS_MOCK } from "./supabase";
 
 const BUCKET = "log-images";
 export type RegistrableRole = Extract<UserRole, "staff" | "intern">;
@@ -31,7 +31,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
-const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client", "admin"];
+const USER_ROLES: UserRole[] = ["staff", "intern", "guest", "client"];
 const REGISTRABLE_ROLES: RegistrableRole[] = ["staff", "intern"];
 
 interface UserProfile {
@@ -112,16 +112,36 @@ async function getUserProfile(name: string): Promise<UserProfile | null> {
     };
   }
 
-  const { data, error } = await supabase.rpc("get_user_profile", { p_name: name });
-  if (error) throw new Error(error.message);
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select("name, role, state")
+    .eq("name", name)
+    .maybeSingle();
 
-  const profile = Array.isArray(data) ? data[0] : data;
-  if (!profile) return null;
+  if (userError) throw new Error(userError.message);
+
+  if (user) {
+    return {
+      name: user.name,
+      role: normalizeUserRole(user.role) ?? (user.role as UserRole),
+      state: user.state as UserState,
+    };
+  }
+
+  const { data: log } = await supabase
+    .from("logs")
+    .select("name, role, state")
+    .eq("name", name)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!log) return null;
 
   return {
-    name: profile.name,
-    role: normalizeUserRole(profile.role) ?? (profile.role as UserRole),
-    state: profile.state as UserState,
+    name: log.name,
+    role: normalizeUserRole(log.role) ?? (log.role as UserRole),
+    state: log.state as UserState,
   };
 }
 
@@ -199,7 +219,7 @@ function getMockLogs(): LogEntry[] {
         id: crypto.randomUUID(),
         name: "Alice Vance",
         type: "login",
-        role: "admin",
+        role: "staff",
         state: "in_office",
         image_url: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
         created_at: new Date(nowMs - 86400000 * i - 3600000 * 2).toISOString(),
@@ -246,8 +266,13 @@ function saveMockLogs(logs: LogEntry[]) {
 function getMockUsers(): User[] {
   if (typeof window === "undefined") return [];
   const stored = localStorage.getItem("office_users");
-  const usersByName = new Map<string, User>();
 
+  if (stored) {
+    return JSON.parse(stored) as User[];
+  }
+
+  // First load: derive from logs and persist
+  const usersByName = new Map<string, User>();
   for (const log of getMockLogs()) {
     const key = normalizeName(log.name);
     if (!usersByName.has(key)) {
@@ -259,13 +284,6 @@ function getMockUsers(): User[] {
       });
     }
   }
-
-  if (stored) {
-    for (const user of JSON.parse(stored) as User[]) {
-      usersByName.set(normalizeName(user.name), user);
-    }
-  }
-
   const users = Array.from(usersByName.values());
   saveMockUsers(users);
   return users;
@@ -300,7 +318,12 @@ export async function getStaffInternUsers(): Promise<User[]> {
       .sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const { data, error } = await supabase.rpc("get_staff_intern_users");
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .in("role", ["staff", "intern"])
+    .order("name");
+
   if (error) throw new Error(error.message);
 
   return ((data ?? []) as User[])
@@ -322,37 +345,45 @@ export async function registerStaffOrIntern(name: string, role: RegistrableRole)
 
   if (IS_MOCK) {
     const users = getMockUsers();
+    const exists = users.some((u) => normalizeName(u.name) === normalizeName(trimmedName));
+    if (exists) {
+      throw new Error(`User "${trimmedName}" already exists. Edit them instead.`);
+    }
+
     const user: User = {
       name: trimmedName,
       role: normalizedRole,
       state: "out_of_office",
       updated_at: new Date().toISOString(),
     };
-    const existingIndex = users.findIndex((existingUser) => normalizeName(existingUser.name) === normalizeName(trimmedName));
-
-    if (existingIndex >= 0) {
-      users[existingIndex] = user;
-    } else {
-      users.push(user);
-    }
-
+    users.push(user);
     saveMockUsers(users);
     return user;
   }
 
-  const { data, error } = await supabase.rpc("register_staff_intern_user", {
-    p_name: trimmedName,
-    p_role: normalizedRole,
-  });
+  const { data: existing } = await supabase
+    .from("users")
+    .select("name")
+    .ilike("name", trimmedName)
+    .maybeSingle();
+
+  if (existing) {
+    throw new Error(`User "${trimmedName}" already exists. Edit them instead.`);
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .insert({ name: trimmedName, role: normalizedRole, state: "out_of_office", updated_at: new Date().toISOString() })
+    .select()
+    .single();
 
   if (error) throw new Error(error.message);
 
-  const registeredUser = Array.isArray(data) ? data[0] : data;
   return {
-    name: registeredUser.name,
-    role: normalizeRegistrableRole(registeredUser.role) ?? normalizedRole,
-    state: registeredUser.state ?? "out_of_office",
-    updated_at: registeredUser.updated_at ?? new Date().toISOString(),
+    name: data.name,
+    role: normalizeRegistrableRole(data.role) ?? normalizedRole,
+    state: data.state as UserState,
+    updated_at: data.updated_at,
   };
 }
 
@@ -425,11 +456,9 @@ export async function createLog(
     throw new Error(`Saving log failed: ${error.message}`);
   }
 
-  const { error: upsertError } = await supabase.rpc("upsert_user_state", {
-    p_name: validated.name,
-    p_role: validated.role,
-    p_state: validated.state,
-  });
+  const { error: upsertError } = await supabase
+    .from("users")
+    .upsert({ name: validated.name, role: validated.role, state: validated.state, updated_at: new Date().toISOString() });
 
   if (upsertError) {
     console.error("Failed to update user state:", upsertError.message);
@@ -527,11 +556,9 @@ export async function createMultipleLogs(
   await Promise.all(
     stateResults.map(p =>
       (async () => {
-        const { error } = await supabase.rpc("upsert_user_state", {
-          p_name: p.name,
-          p_role: p.role,
-          p_state: p.state,
-        });
+        const { error } = await supabase
+          .from("users")
+          .upsert({ name: p.name, role: p.role, state: p.state, updated_at: new Date().toISOString() });
         if (error) console.error(`Failed to update state for ${p.name}:`, error.message);
       })()
     )
@@ -571,11 +598,14 @@ export async function getNameSuggestions(): Promise<Array<{ name: string; role: 
     return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const { data, error } = await supabase.rpc("get_user_suggestions");
+  const { data: users, error } = await supabase
+    .from("users")
+    .select("name, role");
+
   if (error) {
     console.warn("Could not load user directory suggestions:", error.message);
   } else {
-    for (const { name, role } of (data ?? []) as Array<{ name: string; role: string }>) {
+    for (const { name, role } of users ?? []) {
       addNameSuggestion(suggestionsByName, name, role);
     }
   }
@@ -641,6 +671,141 @@ export function calculateStreak(logs: LogEntry[], name: string): number {
   return streak;
 }
 
+// --- Admin CRUD for users ------------------------------------------
+
+export async function deleteUser(name: string): Promise<void> {
+  const trimmedName = name.trim();
+  if (!trimmedName) throw new Error("Please provide a name.");
+
+  if (IS_MOCK) {
+    const users = getMockUsers();
+    const filtered = users.filter((u) => normalizeName(u.name) !== normalizeName(trimmedName));
+    if (filtered.length === users.length) {
+      throw new Error(`User "${trimmedName}" not found.`);
+    }
+    saveMockUsers(filtered);
+    return;
+  }
+
+  const { data: toDelete, error: fetchError } = await supabase
+    .from("users")
+    .select("name")
+    .ilike("name", trimmedName)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+  if (!toDelete) throw new Error(`User "${trimmedName}" not found.`);
+
+  const { error } = await supabase
+    .from("users")
+    .delete()
+    .eq("name", toDelete.name);
+
+  if (error) throw new Error(error.message);
+}
+
+export async function renameUser(oldName: string, newName: string): Promise<User> {
+  const trimmedOld = oldName.trim();
+  const trimmedNew = newName.trim();
+
+  if (!trimmedOld) throw new Error("Please provide the current name.");
+  if (!trimmedNew) throw new Error("Please provide a new name.");
+  if (normalizeName(trimmedOld) === normalizeName(trimmedNew)) {
+    throw new Error("New name is the same as the current name.");
+  }
+
+  if (IS_MOCK) {
+    const users = getMockUsers();
+    const idx = users.findIndex((u) => normalizeName(u.name) === normalizeName(trimmedOld));
+    if (idx < 0) throw new Error(`User "${trimmedOld}" not found.`);
+
+    const newNameTaken = users.some(
+      (u, i) => i !== idx && normalizeName(u.name) === normalizeName(trimmedNew)
+    );
+    if (newNameTaken) {
+      throw new Error(`User "${trimmedNew}" already exists.`);
+    }
+
+    users[idx] = { ...users[idx], name: trimmedNew, updated_at: new Date().toISOString() };
+    saveMockUsers(users);
+    return users[idx];
+  }
+
+  const { data: nameTaken } = await supabase
+    .from("users")
+    .select("name")
+    .ilike("name", trimmedNew)
+    .maybeSingle();
+
+  if (nameTaken) throw new Error(`User "${trimmedNew}" already exists.`);
+
+  const { data: found } = await supabase
+    .from("users")
+    .select("name")
+    .ilike("name", trimmedOld)
+    .maybeSingle();
+
+  if (!found) throw new Error(`User "${trimmedOld}" not found.`);
+
+  const { data, error } = await supabase
+    .from("users")
+    .update({ name: trimmedNew, updated_at: new Date().toISOString() })
+    .eq("name", found.name)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    name: data.name,
+    role: data.role as UserRole,
+    state: data.state as UserState,
+    updated_at: data.updated_at,
+  };
+}
+
+export async function updateUserRole(name: string, newRole: RegistrableRole): Promise<User> {
+  const trimmedName = name.trim();
+  const normalizedRole = normalizeRegistrableRole(newRole);
+
+  if (!trimmedName) throw new Error("Please provide a name.");
+  if (!normalizedRole) throw new Error("Only staff and intern roles are valid.");
+
+  if (IS_MOCK) {
+    const users = getMockUsers();
+    const idx = users.findIndex((u) => normalizeName(u.name) === normalizeName(trimmedName));
+    if (idx < 0) throw new Error(`User "${trimmedName}" not found.`);
+
+    users[idx] = { ...users[idx], role: normalizedRole, updated_at: new Date().toISOString() };
+    saveMockUsers(users);
+    return users[idx];
+  }
+
+  const { data: found } = await supabase
+    .from("users")
+    .select("name")
+    .ilike("name", trimmedName)
+    .maybeSingle();
+
+  if (!found) throw new Error(`User "${trimmedName}" not found.`);
+
+  const { data, error } = await supabase
+    .from("users")
+    .update({ role: normalizedRole, updated_at: new Date().toISOString() })
+    .eq("name", found.name)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    name: data.name,
+    role: normalizeRegistrableRole(data.role) ?? normalizedRole,
+    state: data.state as UserState,
+    updated_at: data.updated_at,
+  };
+}
+
 /** Log administrative audit logs */
 export async function createActivityLog(action: string, details: string): Promise<void> {
   if (IS_MOCK) {
@@ -659,6 +824,68 @@ export async function createActivityLog(action: string, details: string): Promis
   await supabase
     .from("admin_activity_logs")
     .insert({ action, details });
+}
+
+/** Fetch admin config rows. If email is provided, returns that row or null. */
+export async function getAdminConfig(email?: string): Promise<AdminConfig | null> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return null;
+    const stored = localStorage.getItem("mock_admin_config_list");
+    const list: AdminConfig[] = stored
+      ? JSON.parse(stored)
+      : [{ email: "admin@startuplab.com", created_at: new Date().toISOString() }];
+    if (!stored) {
+      localStorage.setItem("mock_admin_config_list", JSON.stringify(list));
+    }
+    if (email) return list.find((a) => a.email === email) ?? null;
+    return list[0] ?? null;
+  }
+
+  let query = supabase.from("admin_config").select("*");
+  if (email) {
+    query = query.eq("email", email);
+  }
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as AdminConfig | null;
+}
+
+/** Fetch all admin emails (for the Admin Management panel) */
+export async function getAdminList(): Promise<AdminConfig[]> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem("mock_admin_config_list");
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  const { data, error } = await supabase
+    .from("admin_config")
+    .select("*")
+    .order("created_at");
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AdminConfig[];
+}
+
+/** Delete an admin by email (cannot delete yourself). */
+export async function deleteAdmin(email: string): Promise<void> {
+  if (IS_MOCK) {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("mock_admin_config_list");
+    if (!stored) return;
+    const list: AdminConfig[] = JSON.parse(stored);
+    const filtered = list.filter((a) => a.email !== email);
+    localStorage.setItem("mock_admin_config_list", JSON.stringify(filtered));
+    return;
+  }
+
+  const { error } = await supabase
+    .from("admin_config")
+    .delete()
+    .eq("email", email);
+
+  if (error) throw new Error(error.message);
 }
 
 /** Fetch administrative activity audit logs */
