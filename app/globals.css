@@ -1,12 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&family=Inter:wght@400;500;600;700;800&family=DM+Sans:wght@700;800&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-slogan: 'Outfit', sans-serif;
+  
+  --color-brand-blue-600: #315EEF;
+  --color-brand-blue-500: #4A72F1;
+  --color-brand-blue-300: #7393F4;
+  --color-brand-blue-200: #ABC0F9;
+  --color-brand-blue-100: #DBEAFE;
+  --color-brand-blue-50: #EEF2FF;
+  --color-brand-blue-400: #2F73F3;
+  --color-brand-ink: #2D2D2D;
+  
+  --color-ink-900: #0F172A;
+  --color-ink-700: #37404C;
+  --color-ink-600: #6F7A8A;
+  --color-ink-500: #606674;
+  --color-ink-400: #94A3B8;
+  
+  --color-surface-white: #FFFFFF;
+  --color-surface-50: #F8FAFC;
+  --color-surface-100: #F1F5F9;
+  --color-surface-200: #E2E8F0;
+  
+  --color-hero-grad-a: #F6FAFF;
+  --color-hero-grad-b: #EAF2FF;
+
+  --color-action-login: #059669;
+  --color-action-login-light: #D1FAE5;
+  --color-action-login-bg: #ECFDF5;
+
+  --color-action-break: #D97706;
+  --color-action-break-light: #FEF3C7;
+  --color-action-break-bg: #FFFBEB;
+
+  --color-action-logout: #DC2626;
+  --color-action-logout-light: #FEE2E2;
+  --color-action-logout-bg: #FEF2F2;
+}
+
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: var(--color-surface-50);
+  --foreground: var(--color-ink-700);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans);
+}
+
+/* Custom Keyframe Animations */
+@keyframes flash {
+  0% { opacity: 0; }
+  25% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bounceScale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+.animate-flash {
+  animation: flash 0.5s ease-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-scaleIn {
+  animation: scaleIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-bounceScale {
+  animation: bounceScale 1.5s infinite ease-in-out;
 }

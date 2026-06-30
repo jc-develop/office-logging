@@ -25,6 +25,18 @@ Copy the example file and fill in your project's values (found under
 cp .env.local.example .env.local
 ```
 
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.local.example .env.local
+```
+
+On Windows cmd:
+
+```cmd
+copy .env.local.example .env.local
+```
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -36,6 +48,22 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 npm install
 npm run dev
 ```
+
+If PowerShell blocks `npm.ps1` with an execution policy error, use the Windows
+command shell instead:
+
+```cmd
+npm.cmd install
+npm.cmd run dev
+```
+
+Or allow scripts for your current user in PowerShell:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
+```
+
+Then reopen your terminal and run `npm run dev` again.
 
 Open [http://localhost:3000](http://localhost:3000). The browser will ask for
 camera permission. View entries at [/logs](http://localhost:3000/logs).
