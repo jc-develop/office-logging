@@ -80,7 +80,7 @@ on conflict (name) do nothing;
 
 -- 7. Row Level Security --------------------------------------
 
--- Logs
+-- Logs: kiosk can INSERT (anonymous), only admins can SELECT
 alter table public.logs enable row level security;
 
 create policy "Anyone can insert logs"
@@ -88,35 +88,35 @@ create policy "Anyone can insert logs"
   to anon, authenticated
   with check (true);
 
-create policy "Anyone can read logs"
+create policy "Admins can read logs"
   on public.logs for select
-  to anon, authenticated
+  to authenticated
   using (true);
 
--- Users
+-- Users: only authenticated users can read / write
 alter table public.users enable row level security;
 
-create policy "Anyone can upsert users"
+create policy "Admins can upsert users"
   on public.users for insert
-  to anon, authenticated
+  to authenticated
   with check (true);
 
-create policy "Anyone can update users"
+create policy "Admins can update users"
   on public.users for update
-  to anon, authenticated
+  to authenticated
   using (true);
 
-create policy "Anyone can read users"
+create policy "Admins can read users"
   on public.users for select
-  to anon, authenticated
+  to authenticated
   using (true);
 
--- Admin activity logs
+-- Admin activity logs: only authenticated users can write / read
 alter table public.admin_activity_logs enable row level security;
 
-create policy "Anyone can insert activity logs"
+create policy "Admins can insert activity logs"
   on public.admin_activity_logs for insert
-  to anon, authenticated
+  to authenticated
   with check (true);
 
 create policy "Admins can read activity logs"
@@ -155,7 +155,7 @@ create policy "Anyone can upload log images"
   to anon, authenticated
   with check (bucket_id = 'log-images');
 
-create policy "Anyone can read log images"
-  on storage.objects for select
-  to anon, authenticated
-  using (bucket_id = 'log-images');
+-- NOTE: No SELECT policy on storage.objects.
+-- The bucket is public so existing photo URLs remain accessible,
+-- but listing/filtering objects via the API requires authentication.
+-- This prevents anonymous data scraping of all stored photos.

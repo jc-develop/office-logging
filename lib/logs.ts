@@ -577,48 +577,36 @@ export async function getLogs(limit = 200): Promise<LogEntry[]> {
     return getMockLogs().slice(0, limit);
   }
 
-  const { data, error } = await supabase
-    .from("logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as LogEntry[];
+  const res = await fetch(`/api/kiosk/logs?limit=${limit}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch logs (${res.status})`);
+  }
+  return res.json() as Promise<LogEntry[]>;
 }
 
 /** Get list of auto-search suggestions from the user directory. */
 export async function getNameSuggestions(): Promise<Array<{ name: string; role: UserRole }>> {
-  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
-
   if (IS_MOCK) {
+    const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
     for (const { name, role } of getMockUsers()) {
       addNameSuggestion(suggestionsByName, name, role);
     }
     return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
-  const { data: users, error } = await supabase
-    .from("users")
-    .select("name, role");
-
-  if (error) {
-    console.warn("Could not load user directory suggestions:", error.message);
-  } else {
-    for (const { name, role } of users ?? []) {
-      addNameSuggestion(suggestionsByName, name, role);
-    }
-  }
-
   try {
-    for (const { name, role } of await getLogs(1000)) {
-      addNameSuggestion(suggestionsByName, name, role);
+    const res = await fetch("/api/kiosk/users");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      console.warn("Could not load name suggestions:", body.error || res.statusText);
+      return [];
     }
+    return res.json() as Promise<Array<{ name: string; role: UserRole }>>;
   } catch (error) {
-    console.warn("Could not merge log names into suggestions:", error);
+    console.warn("Could not load name suggestions:", error);
+    return [];
   }
-
-  return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Calculate user's current consecutive login streak in days */
