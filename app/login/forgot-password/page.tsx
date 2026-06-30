@@ -3,18 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 import { supabase, IS_MOCK } from "@/lib/supabase";
-import { playClickSound, playSuccessSound } from "@/lib/audio";
+import { playClickSound, playSuccessSound, playErrorSound } from "@/lib/audio";
 import { createActivityLog } from "@/lib/logs";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     playClickSound();
     setLoading(true);
+    setErrorMessage("");
 
     const trimmedEmail = email.trim();
 
@@ -29,6 +31,13 @@ export default function ForgotPasswordPage() {
     const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
       redirectTo: `${window.location.origin}/login/update-password`,
     });
+
+    if (error) {
+      setLoading(false);
+      playErrorSound();
+      setErrorMessage(error.message);
+      return;
+    }
 
     await createActivityLog(
       "PASSWORD_RESET_REQUESTED",
@@ -99,6 +108,12 @@ export default function ForgotPasswordPage() {
               className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2.5 text-sm text-ink-950 outline-none transition focus:border-brand-blue-500 focus:ring-1 focus:ring-brand-blue-500/20"
             />
           </div>
+
+          {errorMessage && (
+            <p className="text-xs font-semibold text-red-500 text-center">
+              {errorMessage}
+            </p>
+          )}
 
           <button
             type="submit"
