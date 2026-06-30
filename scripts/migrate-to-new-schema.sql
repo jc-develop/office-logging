@@ -129,50 +129,44 @@ END $$;
 
 -- 7) Row Level Security ---------------------------------------------
 
--- Logs
-DO $$
-BEGIN
-  IF to_regclass('public.logs') IS NOT NULL THEN
-    ALTER TABLE public.logs ENABLE ROW LEVEL SECURITY;
+-- Logs: kiosk can INSERT (anonymous), only admins can SELECT
+alter table public.logs enable row level security;
 
-    -- “Anyone” policies as in your original script
-    CREATE POLICY "Anyone can insert logs"
-      ON public.logs FOR INSERT
-      TO anon, authenticated
-      WITH CHECK (true);
+create policy "Anyone can insert logs"
+  on public.logs for insert
+  to anon, authenticated
+  with check (true);
 
-    CREATE POLICY "Anyone can read logs"
-      ON public.logs FOR SELECT
-      TO anon, authenticated
-      USING (true);
-  END IF;
-END $$;
+create policy "Admins can read logs"
+  on public.logs for select
+  to authenticated
+  using (true);
 
--- Users
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+-- Users: only authenticated users can read / write
+alter table public.users enable row level security;
 
-CREATE POLICY "Anyone can upsert users"
-  ON public.users FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (true);
+create policy "Admins can upsert users"
+  on public.users for insert
+  to authenticated
+  with check (true);
 
-CREATE POLICY "Anyone can update users"
-  ON public.users FOR UPDATE
-  TO anon, authenticated
-  USING (true);
+create policy "Admins can update users"
+  on public.users for update
+  to authenticated
+  using (true);
 
-CREATE POLICY "Anyone can read users"
-  ON public.users FOR SELECT
-  TO anon, authenticated
-  USING (true);
+create policy "Admins can read users"
+  on public.users for select
+  to authenticated
+  using (true);
 
--- Admin activity logs
-ALTER TABLE public.admin_activity_logs ENABLE ROW LEVEL SECURITY;
+-- Admin activity logs: only authenticated users can write / read
+alter table public.admin_activity_logs enable row level security;
 
-CREATE POLICY "Anyone can insert activity logs"
-  ON public.admin_activity_logs FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (true);
+create policy "Admins can insert activity logs"
+  on public.admin_activity_logs for insert
+  to authenticated
+  with check (true);
 
 CREATE POLICY "Admins can read activity logs"
   ON public.admin_activity_logs FOR SELECT
@@ -212,29 +206,17 @@ CREATE POLICY "Admins can delete admin_config"
     AND email <> auth.jwt() ->> 'email'
   );
 
--- 8) Storage bucket for photos ---------------------------------------
-DO $$
-BEGIN
-  -- buckets table should exist; guard anyway
-  IF to_regclass('storage.buckets') IS NOT NULL THEN
-    INSERT INTO storage.buckets (id, name, public)
-    VALUES ('log-images', 'log-images', true)
-    ON CONFLICT (id) DO NOTHING;
-  END IF;
-END $$;
+-- 8. Storage bucket for photos --------------------------------
+insert into storage.buckets (id, name, public)
+values ('log-images', 'log-images', true)
+on conflict (id) do nothing;
 
--- Ensure storage policies only if storage.objects exists
-DO $$
-BEGIN
-  IF to_regclass('storage.objects') IS NOT NULL THEN
-    CREATE POLICY "Anyone can upload log images"
-      ON storage.objects FOR INSERT
-      TO anon, authenticated
-      WITH CHECK (bucket_id = 'log-images');
+create policy "Anyone can upload log images"
+  on storage.objects for insert
+  to anon, authenticated
+  with check (bucket_id = 'log-images');
 
-    CREATE POLICY "Anyone can read log images"
-      ON storage.objects FOR SELECT
-      TO anon, authenticated
-      USING (bucket_id = 'log-images');
-  END IF;
-END $$;
+-- NOTE: No SELECT policy on storage.objects.
+-- The bucket is public so existing photo URLs remain accessible,
+-- but listing/filtering objects via the API requires authentication.
+-- This prevents anonymous data scraping of all stored photos.
