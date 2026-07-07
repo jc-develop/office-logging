@@ -1,27 +1,27 @@
 import crypto from "crypto";
 
-const ALGORITHM = "aes-256-gcm";
 const KEY_ENV = "NAME_ENCRYPTION_KEY";
 const PEPPER_ENV = "NAME_HASH_PEPPER";
 
-function getKey(): Buffer {
+function getKeyAndAlgo(): { key: Buffer; algo: string } {
   const hex = process.env[KEY_ENV];
   if (hex) {
     const key = Buffer.from(hex, "hex");
-    if (key.length === 32) return key;
+    if (key.length === 32) return { key, algo: "aes-256-gcm" };
+    if (key.length === 16) return { key, algo: "aes-128-gcm" };
     throw new Error(
-      `Invalid ${KEY_ENV}: expected 32-byte hex (64 hex chars), got ${hex.length}-char string`,
+      `Invalid ${KEY_ENV}: expected 32-byte (64 hex chars) or 16-byte (32 hex chars) key, got ${hex.length}-char string (${key.length} bytes)`,
     );
   }
   // Development fallback — derive a deterministic key from a string
-  return crypto.scryptSync("dev-fallback-key-2024", "crypt-salt", 32);
+  return { key: crypto.scryptSync("dev-fallback-key-2024", "crypt-salt", 32), algo: "aes-256-gcm" };
 }
 
 /** Encrypt a plaintext name. Returns "iv:authTag:ciphertext" (hex). */
 export function encryptName(plaintext: string): string {
-  const key = getKey();
+  const { key, algo } = getKeyAndAlgo();
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const cipher = crypto.createCipheriv(algo, key, iv);
   let enc = cipher.update(plaintext, "utf8", "hex");
   enc += cipher.final("hex");
   const tag = cipher.getAuthTag().toString("hex");
@@ -30,13 +30,13 @@ export function encryptName(plaintext: string): string {
 
 /** Decrypt a "iv:authTag:ciphertext" string back to plaintext. */
 export function decryptName(ciphertext: string): string {
-  const key = getKey();
+  const { key, algo } = getKeyAndAlgo();
   const parts = ciphertext.split(":");
   if (parts.length !== 3) throw new Error("Invalid ciphertext format");
   const [ivHex, tagHex, enc] = parts;
   const iv = Buffer.from(ivHex, "hex");
   const tag = Buffer.from(tagHex, "hex");
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+  const decipher = crypto.createDecipheriv(algo, key, iv);
   decipher.setAuthTag(tag);
   let dec = decipher.update(enc, "hex", "utf8");
   dec += decipher.final("utf8");
