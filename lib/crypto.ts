@@ -9,6 +9,9 @@ function getKey(): Buffer {
   if (hex) {
     const key = Buffer.from(hex, "hex");
     if (key.length === 32) return key;
+    throw new Error(
+      `Invalid ${KEY_ENV}: expected 32-byte hex (64 hex chars), got ${hex.length}-char string`,
+    );
   }
   // Development fallback — derive a deterministic key from a string
   return crypto.scryptSync("dev-fallback-key-2024", "crypt-salt", 32);

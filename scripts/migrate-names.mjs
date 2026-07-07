@@ -26,7 +26,10 @@ import crypto from "crypto";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HEX_KEY = process.env.NAME_ENCRYPTION_KEY;
-const PEPPER = process.env.NAME_HASH_PEPPER || "dev-fallback-pepper";
+const PEPPER = process.env.NAME_HASH_PEPPER || (() => {
+  console.warn("WARNING: NAME_HASH_PEPPER not set — using dev fallback. Set it in production for real security.");
+  return "dev-fallback-pepper";
+})();
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !HEX_KEY) {
   console.error("Missing required env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NAME_ENCRYPTION_KEY");
