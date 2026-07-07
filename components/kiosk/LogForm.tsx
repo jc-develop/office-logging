@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import CameraCapture from "@/components/shared/CameraCapture";
+import CameraCapture, { type CameraCaptureHandle } from "@/components/shared/CameraCapture";
 import DateTimeDisplay from "@/components/shared/DateTimeDisplay";
 import ActionSelector from "./ActionSelector";
 import PersonForm from "./PersonForm";
@@ -65,6 +65,7 @@ export default function LogForm() {
   const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
   const actionLabel = action ? ACTION_LABEL[action] : "";
   const autoResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<CameraCaptureHandle | null>(null);
 
   function chooseAction(type: LogType) {
     playClickSound();
@@ -125,7 +126,7 @@ export default function LogForm() {
 
   if (!action) {
     return (
-      <div className="flex w-full max-w-xl flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <div className="flex w-[98%] max-w-6xl flex-col gap-3 rounded-[18px] border border-surface-200 bg-white p-4 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
         <DateTimeDisplay />
 
         <div className="mx-auto rounded-full bg-brand-blue-50 border border-brand-blue-200 px-3 py-1 text-[11px] font-semibold text-brand-blue-700 tracking-wide shadow-sm">
@@ -144,7 +145,7 @@ export default function LogForm() {
   }
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+    <div className="flex w-[98%] max-w-6xl flex-col gap-3 rounded-[18px] border border-surface-200 bg-white p-4 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
       <DateTimeDisplay />
 
       <div className="flex items-center justify-between border-b border-surface-100 pb-3">
@@ -158,32 +159,53 @@ export default function LogForm() {
         <SuccessCard message={status.message} names={status.names} />
       ) : (
         <>
-          {currentGreeting && (
-            <SessionGreeting emoji={greetingEmoji} text={greetingText} variant="inline" />
-          )}
+          <div className="grid grid-cols-2 gap-3">
+            <PersonForm
+              people={people}
+              saving={saving}
+              maxPeople={MAX_PEOPLE}
+              onUpdateName={updatePersonName}
+              onRemove={removePerson}
+              onAdd={addPerson}
+            />
 
-          <PersonForm
-            people={people}
-            saving={saving}
-            maxPeople={MAX_PEOPLE}
-            onUpdateName={updatePersonName}
-            onRemove={removePerson}
-            onAdd={addPerson}
-          />
-
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Webcam Verification</label>
-            <CameraCapture onCapture={setImage} />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Webcam Verification</label>
+              <CameraCapture ref={cameraRef} onCapture={setImage} hideControls />
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className={`w-full rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer py-3 font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
-          >
-            {saving ? "Logging session details…" : `Save & Complete ${actionLabel}`}
-          </button>
+          {!saving && (
+            <div className="flex items-center justify-center gap-3">
+              {image ? (
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.retake()}
+                  className="min-w-[200px] rounded-xl border border-surface-200 bg-white px-8 py-3 text-sm font-bold text-ink-700 transition hover:bg-surface-50 hover:text-brand-blue-600 shadow-sm cursor-pointer"
+                >
+                  🔄 Retake photo
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.capture()}
+                  disabled={!cameraRef.current?.cameraReady || saving}
+                  className="min-w-[200px] rounded-xl bg-brand-blue-600 px-8 py-3 text-sm font-bold text-white shadow-md shadow-brand-blue-100 hover:bg-brand-blue-500 active:scale-98 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  📷 Capture Photo
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!canSave}
+                className={`min-w-[200px] rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer px-8 py-3 text-sm font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
+              >
+                {saving ? "Logging…" : `Save & Complete ${actionLabel}`}
+              </button>
+            </div>
+          )}
 
           {status.kind === "error" && (
             <p className="rounded-xl border border-brand-blue-200 bg-brand-blue-50 px-4 py-3 text-center text-xs font-bold text-brand-blue-700 animate-fadeIn">

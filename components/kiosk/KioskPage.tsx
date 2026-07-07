@@ -12,7 +12,7 @@ export default function KioskPage() {
 
       <KioskNavbar />
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-6">
+      <div className="flex flex-1 flex-col items-center justify-center px-2 py-2">
         <LogForm />
       </div>
     </main>

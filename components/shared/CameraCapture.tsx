@@ -1,12 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import type { FaceLandmarker } from "@mediapipe/tasks-vision";
 import { playClickSound, playTickSound, playShutterSound } from "@/lib/audio";
 
+export interface CameraCaptureHandle {
+  capture: () => void;
+  retake: () => void;
+  hasImage: boolean;
+  cameraReady: boolean;
+  countdown: number | null;
+  noFaceError: boolean;
+}
+
 interface CameraCaptureProps {
   onCapture: (image: string | null) => void;
+  hideControls?: boolean;
 }
 
 const videoConstraints = {
@@ -234,7 +244,7 @@ function drawFaceEffect(context: CanvasRenderingContext2D, effect: FaceEffect, f
   anchors.forEach((anchor) => drawSingleFaceEffect(context, effect, anchor, width, height));
 }
 
-export default function CameraCapture({ onCapture }: CameraCaptureProps) {
+const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(function CameraCapture({ onCapture, hideControls = false }: CameraCaptureProps, ref) {
   const webcamRef = useRef<Webcam>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const trackingFrameRef = useRef<number | null>(null);
@@ -432,9 +442,18 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     onCapture(null);
   }, [onCapture]);
 
+  useImperativeHandle(ref, () => ({
+    capture: startCountdown,
+    retake,
+    hasImage: !!image,
+    cameraReady,
+    countdown,
+    noFaceError,
+  }), [startCountdown, retake, image, cameraReady, countdown, noFaceError]);
+
   return (
-    <div className="flex flex-col items-center gap-4 w-full animate-fadeIn">
-      <div className="relative w-full max-w-[480px] aspect-[4/3] overflow-hidden rounded-[18px] border border-surface-200 bg-surface-100 shadow-inner">
+    <div className={`flex ${hideControls ? 'flex-row items-start gap-3' : 'flex-col items-center gap-4'} w-full animate-fadeIn`}>
+      <div className={`relative overflow-hidden rounded-[18px] border border-surface-200 bg-surface-100 shadow-inner ${hideControls ? 'flex-1 min-w-0 aspect-[4/3]' : 'w-full max-w-[480px] aspect-[4/3]'}`}>
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -520,10 +539,10 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
       </div>
 
       {!image && (
-        <div className="flex w-full max-w-[480px] flex-col gap-3">
+        <div className={`flex ${hideControls ? 'w-[130px] flex-shrink-0' : 'w-full max-w-[480px]'} flex-col gap-3`}>
           <div className="flex flex-col gap-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Photo Style</span>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div className={`grid ${hideControls ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-6'} gap-1.5`}>
               {PHOTO_STYLES.map((style) => (
                 <button
                   key={style.id}
@@ -532,13 +551,13 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
                     playClickSound();
                     setSelectedStyle(style.id);
                   }}
-                  className={`flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
+                  className={`flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border ${hideControls ? 'px-2.5 py-2 text-xs' : 'min-h-12 px-2 py-2 text-[10px]'} font-bold transition ${
                     selectedStyle === style.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
                       : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
                   }`}
                 >
-                  <span className={`h-3 w-3 rounded-full border border-white shadow-sm ${style.swatch}`} />
+                  <span className={`h-3.5 w-3.5 rounded-full border border-white shadow-sm ${style.swatch}`} />
                   {style.label}
                 </button>
               ))}
@@ -549,14 +568,14 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
             <div className="flex items-center justify-between gap-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Face Filter</span>
               {trackingReady ? (
-                <span className={`text-[10px] font-semibold ${faceAnchors.length > 0 ? "text-emerald-600" : "text-amber-500"}`}>
+                <span className={`${hideControls ? 'hidden' : ''} text-[10px] font-semibold ${faceAnchors.length > 0 ? "text-emerald-600" : "text-amber-500"}`}>
                   ● {faceAnchors.length > 0 ? "Face detected" : "No face detected"}
                 </span>
               ) : (
-                <span className="text-[10px] font-semibold text-ink-400">Loading detection…</span>
+                <span className={`${hideControls ? 'hidden' : ''} text-[10px] font-semibold text-ink-400`}>Loading…</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <div className={`grid ${hideControls ? 'grid-cols-2' : 'grid-cols-3 sm:grid-cols-5'} gap-1.5`}>
               {FACE_EFFECTS.map((effect) => (
                 <button
                   key={effect.id}
@@ -565,7 +584,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
                     playClickSound();
                     setSelectedFaceEffect(effect.id);
                   }}
-                  className={`min-h-10 cursor-pointer rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
+                  className={`cursor-pointer rounded-lg border ${hideControls ? 'px-2.5 py-2 text-xs' : 'min-h-10 px-2 py-2 text-[10px]'} font-bold transition ${
                     selectedFaceEffect === effect.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
                       : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
@@ -579,7 +598,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         </div>
       )}
 
-      {image ? (
+      {!hideControls && (image ? (
         <button
           type="button"
           onClick={retake}
@@ -600,10 +619,12 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
               ? "📷 Try Again"
               : "📷 Capture Photo"}
         </button>
-      )}
+      ))}
     </div>
   );
-}
+});
+
+export default CameraCapture;
 
 function LiveFaceEffect({ effect, faces, trackingReady }: { effect: FaceEffect; faces: FaceAnchor[]; trackingReady: boolean }) {
   const anchors = faces.length > 0 ? faces : [getFallbackFace()];
