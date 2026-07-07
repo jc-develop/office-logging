@@ -155,6 +155,44 @@ export async function deleteLog(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ─── Delete logs by date range ─────────────────────────────────
+
+export async function deleteLogsByDateRange(
+  fromDate: string,
+  toDate: string,
+  type?: LogType,
+): Promise<number> {
+  if (IS_MOCK) {
+    const logs = getMockLogs();
+    const fromTs = new Date(fromDate + "T00:00:00").getTime();
+    const toTs = new Date(toDate + "T23:59:59.999").getTime();
+    const remaining = logs.filter((l) => {
+      const ts = new Date(l.created_at).getTime();
+      if (ts >= fromTs && ts <= toTs) return false;
+      if (type && l.type !== type) return true;
+      return true;
+    });
+    const deleted = logs.length - remaining.length;
+    saveMockLogs(remaining);
+    return deleted;
+  }
+
+  let query = supabase
+    .from("logs")
+    .delete()
+    .gte("created_at", fromDate + "T00:00:00")
+    .lte("created_at", toDate + "T23:59:59.999");
+
+  if (type) {
+    query = query.eq("type", type);
+  }
+
+  const { data, error } = await query.select();
+
+  if (error) throw new Error(error.message);
+  return data?.length ?? 0;
+}
+
 // ─── Admin audit logs ──────────────────────────────────────────
 
 export async function createActivityLog(action: string, details: string): Promise<void> {

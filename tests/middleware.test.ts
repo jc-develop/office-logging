@@ -29,7 +29,7 @@ describe("middleware", () => {
     vi.clearAllMocks();
   });
 
-  it("allows requests to non-admin paths", async () => {
+  it("allows requests to public paths", async () => {
     const req = createRequest("http://localhost/");
     const res = await middleware(req);
     expect(res.status).toBe(200);
@@ -74,54 +74,6 @@ describe("middleware", () => {
     const res = await middleware(req);
 
     expect(res.status).toBe(200); // passes through
-  });
-
-  it("blocks unauthenticated requests to /api/admin", async () => {
-    const { createServerClient } = await import("@supabase/ssr");
-    vi.mocked(createServerClient).mockReturnValue({
-      auth: {
-        getUser: vi.fn(),
-      },
-    } as any);
-
-    const req = createRequest("http://localhost/api/admin/create");
-    const res = await middleware(req);
-
-    expect(res.status).toBe(401);
-  });
-
-  it("allows authenticated requests to /api/admin with Bearer token", async () => {
-    const { createServerClient } = await import("@supabase/ssr");
-    vi.mocked(createServerClient).mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: { id: "1" } }, error: null }),
-      },
-    } as any);
-
-    const req = createRequest(
-      "http://localhost/api/admin/create",
-      "Bearer valid-token"
-    );
-    const res = await middleware(req);
-
-    expect(res.status).toBe(200);
-  });
-
-  it("returns 401 for /api/admin with invalid Bearer token", async () => {
-    const { createServerClient } = await import("@supabase/ssr");
-    vi.mocked(createServerClient).mockReturnValue({
-      auth: {
-        getUser: vi.fn().mockResolvedValue({ data: { user: null }, error: { message: "Invalid token" } }),
-      },
-    } as any);
-
-    const req = createRequest(
-      "http://localhost/api/admin/create",
-      "Bearer invalid-token"
-    );
-    const res = await middleware(req);
-
-    expect(res.status).toBe(401);
   });
 
   it("skips auth check when Supabase env vars are missing", async () => {

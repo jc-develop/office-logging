@@ -1,84 +1,54 @@
 # Office Logging
 
-A kiosk-style attendance app. People enter their name, snap a webcam photo, and
-tap **Log In** or **Log Out**. Each entry — name, action, photo, and timestamp —
-is saved to Supabase.
+A kiosk-style attendance app for the office. People enter their name, snap a
+webcam photo, and tap **Log In**, **Log Out**, or **Break**. Each entry is
+saved to Supabase with an encrypted name, a signed photo URL, and a timestamp.
+Admins can view, filter, and delete entries through a password-protected
+dashboard at `/logs`.
 
 Built with Next.js (App Router), TypeScript, Tailwind CSS, `react-webcam`, and
-Supabase (Postgres + Storage).
+Supabase (Postgres + Auth + Storage).
 
-## Setup
-
-### 1. Create a Supabase project
-
-At [supabase.com](https://supabase.com), create a project. Then go to
-**SQL Editor** and run the contents of [`supabase-setup.sql`](./supabase-setup.sql).
-This creates the `logs` table, the public `log-images` storage bucket, and the
-access policies.
-
-### 2. Configure environment variables
-
-Copy the example file and fill in your project's values (found under
-**Project Settings → API**):
-
-```bash
-cp .env.local.example .env.local
-```
-
-On Windows PowerShell:
-
-```powershell
-Copy-Item .env.local.example .env.local
-```
-
-On Windows cmd:
-
-```cmd
-copy .env.local.example .env.local
-```
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-```
-
-### 3. Install and run
+## Quick start (mock mode)
 
 ```bash
 npm install
 npm run dev
 ```
 
-If PowerShell blocks `npm.ps1` with an execution policy error, use the Windows
-command shell instead:
-
-```cmd
-npm.cmd install
-npm.cmd run dev
-```
-
-Or allow scripts for your current user in PowerShell:
-
-```powershell
-Set-ExecutionPolicy -Scope CurrentUser RemoteSigned -Force
-```
-
-Then reopen your terminal and run `npm run dev` again.
+If `NEXT_PUBLIC_SUPABASE_URL` contains `placeholder` or `your-project`, the app
+runs in **mock mode** using `localStorage`. No Supabase connection needed.
+Default admin credentials: `admin@startuplab.com` / `admin123`.
 
 Open [http://localhost:3000](http://localhost:3000). The browser will ask for
-camera permission. View entries at [/logs](http://localhost:3000/logs).
+camera permission. Sign in at `/login` to access the admin dashboard.
+
+> For production setup (Supabase project, auth, environment variables), see
+> [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## How it works
 
-- `app/page.tsx` — the logging screen (`components/LogForm.tsx` +
-  `components/CameraCapture.tsx`).
-- `lib/logs.ts` — uploads the captured photo to Supabase Storage and inserts the
-  log row.
-- `app/logs/page.tsx` — a simple table of all entries.
+- `components/kiosk/` — the public kiosk UI (name entry, camera capture,
+  action selector, success confirmation).
+- `app/api/kiosk/log` — API route that encrypts the name (AES-256-GCM),
+  computes a deterministic SHA-256 hash for lookups, uploads the photo to
+  Supabase Storage, and inserts a row in the `logs` table.
+- `components/admin/` — admin dashboard UI (login, attendance table with
+  decrypted names, detail modal, delete confirmation, admin management,
+  security audit log).
+- `lib/logs.ts` — shared logic for fetching and formatting logs on the client.
+- `app/api/admin/` — server-side admin routes (auth, user creation,
+  activity logging).
+- `app/api/cron/cleanup` — daily cron job that deletes logs and photos older
+  than 30 days.
 
-## Security note
+## Security
 
-This app uses Supabase's anon key directly from the browser with permissive RLS
-policies (anyone can insert/read), which suits a trusted in-office kiosk. If you
-expose it more widely, add authentication and tighten the policies in
-`supabase-setup.sql`.
+- Names are encrypted at rest with **AES-256-GCM**. A separate SHA-256 hash
+  enables fast lookups without exposing plaintext.
+- Photos are stored in a **private** Supabase Storage bucket; the admin
+  dashboard requests signed, time-limited URLs.
+- The admin dashboard requires **Supabase Auth** login. RLS policies restrict
+  reads, deletes, and admin management to authenticated admin users.
+- The kiosk endpoint is **public** (anyone can log) — suitable for a trusted
+  in-office kiosk behind a locked door or on a private network.

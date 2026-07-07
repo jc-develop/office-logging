@@ -11,24 +11,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // API admin routes use Bearer token in Authorization header
-  if (pathname.startsWith("/api/admin")) {
-    const authHeader = request.headers.get("authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
-      const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
-        global: { headers: { Authorization: `Bearer ${token}` } },
-        cookies: {
-          getAll: () => [],
-          setAll: () => {},
-        },
-      });
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) return NextResponse.next();
-    }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   // Page routes under /logs require a valid session via cookies
   if (pathname.startsWith("/logs")) {
     const response = NextResponse.next();
@@ -58,5 +40,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/logs/:path*", "/api/admin/:path*"],
+  matcher: ["/logs/:path*"],
 };
