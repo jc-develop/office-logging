@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import CameraCapture from "@/components/shared/CameraCapture";
+import DateTimeDisplay from "@/components/shared/DateTimeDisplay";
 import ActionSelector from "./ActionSelector";
 import PersonForm from "./PersonForm";
 import SessionGreeting from "./SessionGreeting";
@@ -124,7 +125,9 @@ export default function LogForm() {
 
   if (!action) {
     return (
-      <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <div className="flex w-full max-w-xl flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+        <DateTimeDisplay />
+
         <div className="mx-auto rounded-full bg-brand-blue-50 border border-brand-blue-200 px-3 py-1 text-[11px] font-semibold text-brand-blue-700 tracking-wide shadow-sm">
           {IS_MOCK ? "⚠️ Running in Local Demo Mode" : "⚡ Live Database Connected"}
         </div>
@@ -141,8 +144,10 @@ export default function LogForm() {
   }
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
-      <div className="flex items-center justify-between border-b border-surface-100 pb-4">
+    <div className="flex w-full max-w-xl flex-col gap-4 rounded-[18px] border border-surface-200 bg-white p-5 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <DateTimeDisplay />
+
+      <div className="flex items-center justify-between border-b border-surface-100 pb-3">
         <span className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${ACTION_BADGE[action]}`}>{actionLabel}</span>
         <button type="button" onClick={reset} disabled={saving} className="cursor-pointer text-xs font-bold text-ink-500 transition hover:text-brand-blue-600 disabled:opacity-30">
           ← Change Action
@@ -175,7 +180,7 @@ export default function LogForm() {
             type="button"
             onClick={handleSave}
             disabled={!canSave}
-            className={`w-full rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer py-4 font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
+            className={`w-full rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer py-3 font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
           >
             {saving ? "Logging session details…" : `Save & Complete ${actionLabel}`}
           </button>

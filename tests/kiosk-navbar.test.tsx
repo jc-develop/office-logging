@@ -15,10 +15,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/components/shared/DateTimeDisplay", () => ({
-  default: () => <div data-testid="date-time-display">Mock DateTime</div>,
-}));
-
 describe("KioskNavbar", () => {
   it("renders the company logo", () => {
     render(<KioskNavbar />);
@@ -32,9 +28,9 @@ describe("KioskNavbar", () => {
     expect(textLogo).toBeInTheDocument();
   });
 
-  it("renders the DateTimeDisplay component", () => {
+  it("renders the title heading", () => {
     render(<KioskNavbar />);
-    expect(screen.getByTestId("date-time-display")).toBeInTheDocument();
+    expect(screen.getByText("StartupLab Office Logging")).toBeInTheDocument();
   });
 
   it("renders the Admin Portal link", () => {

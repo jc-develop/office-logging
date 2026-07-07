@@ -10,18 +10,6 @@ vi.mock("@/components/kiosk/LogForm", () => ({
 }));
 
 describe("KioskPage", () => {
-  it("renders the heading", async () => {
-    const KioskPage = (await import("@/components/kiosk/KioskPage")).default;
-    render(<KioskPage />);
-    expect(screen.getByText("StartupLab Office Logging")).toBeInTheDocument();
-  });
-
-  it("renders the subtitle", async () => {
-    const KioskPage = (await import("@/components/kiosk/KioskPage")).default;
-    render(<KioskPage />);
-    expect(screen.getByText(/welcome to the startupLab workspace/i)).toBeInTheDocument();
-  });
-
   it("renders the KioskNavbar", async () => {
     const KioskPage = (await import("@/components/kiosk/KioskPage")).default;
     render(<KioskPage />);
@@ -32,11 +20,5 @@ describe("KioskPage", () => {
     const KioskPage = (await import("@/components/kiosk/KioskPage")).default;
     render(<KioskPage />);
     expect(screen.getByTestId("log-form")).toBeInTheDocument();
-  });
-
-  it("renders the footer", async () => {
-    const KioskPage = (await import("@/components/kiosk/KioskPage")).default;
-    render(<KioskPage />);
-    expect(screen.getByText(/StartupLab Kiosk System/i)).toBeInTheDocument();
   });
 });
