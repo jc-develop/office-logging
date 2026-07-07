@@ -59,9 +59,8 @@ export const FACE_EFFECTS: Array<{ id: FaceEffect; label: string }> = [
   { id: "dog", label: "Dog" },
 ];
 
-const FACE_LANDMARKER_MODEL =
-  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
-const VISION_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm";
+const FACE_LANDMARKER_MODEL = "/models/face_landmarker.task";
+const VISION_WASM_PATH = "/wasm";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

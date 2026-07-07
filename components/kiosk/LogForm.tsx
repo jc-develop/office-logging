@@ -281,7 +281,7 @@ export default function LogForm() {
           )}
 
           <div className="flex items-center justify-center gap-2 border-t border-surface-100 pt-4 text-center text-[10px] font-semibold text-ink-400">
-            🔒 Data Privacy Compliant: Photos are processed locally for security logs and are never shared.
+            📸 Photos are stored and processed by face detection for security logging and are never shared.
           </div>
         </>
       )}
