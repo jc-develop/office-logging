@@ -6,14 +6,14 @@ import ActionSelector from "./ActionSelector";
 import PersonForm from "./PersonForm";
 import SessionGreeting from "./SessionGreeting";
 import SuccessCard from "./SuccessCard";
-import { calculateStreak, createMultipleLogs, getLogs, getNameSuggestions } from "@/lib/logs";
-import { IS_MOCK, type LogEntry, type LogType, type UserRole } from "@/lib/supabase";
+import { createMultipleLogs } from "@/lib/logs";
+import { IS_MOCK, type LogType } from "@/lib/supabase";
 import { playClickSound, playErrorSound, playSuccessSound } from "@/lib/audio";
 
 type Status =
   | { kind: "idle" }
   | { kind: "saving" }
-  | { kind: "success"; message: string; welcomeCards: Array<{ name: string; welcomeMessage: string; badges: Array<{ name: string; icon: string; style: string }> }> }
+  | { kind: "success"; message: string; names: string[] }
   | { kind: "error"; message: string };
 
 const ACTION_LABEL: Record<LogType, string> = {
@@ -44,69 +44,12 @@ const GREETINGS = [
 ];
 
 const MAX_PEOPLE = 4;
-const WALK_IN_ROLES = new Set<UserRole>(["guest", "client"]);
-
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase();
-}
-
-function normalizeRole(role: UserRole | string): string {
-  return role.toLowerCase();
-}
-
-function mergeSuggestions(
-  currentSuggestions: Array<{ name: string; role: UserRole }>,
-  newSuggestions: Array<{ name: string; role: UserRole }>
-) {
-  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
-
-  for (const suggestion of currentSuggestions) {
-    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
-  }
-
-  for (const suggestion of newSuggestions) {
-    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
-  }
-
-  return Array.from(suggestionsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-function getRoleVerificationError(
-  people: Array<{ name: string; role: UserRole }>,
-  suggestions: Array<{ name: string; role: UserRole }>,
-  action: LogType
-) {
-  const suggestionsByName = new Map<string, { name: string; role: UserRole }>();
-
-  for (const suggestion of suggestions) {
-    suggestionsByName.set(normalizeName(suggestion.name), suggestion);
-  }
-
-  for (const person of people) {
-    const name = person.name.trim();
-    const registeredPerson = suggestionsByName.get(normalizeName(name));
-
-    if (registeredPerson && normalizeRole(registeredPerson.role) === normalizeRole(person.role)) continue;
-    if (!registeredPerson && action === "login" && WALK_IN_ROLES.has(person.role)) continue;
-
-    if (registeredPerson) {
-      return `${name} is registered as ${registeredPerson.role}, not ${person.role}. Please select the correct role.`;
-    }
-
-    return `${name} is not registered as ${person.role}. Contact an administrator.`;
-  }
-
-  return null;
-}
 
 export default function LogForm() {
   const [action, setAction] = useState<LogType | null>(null);
-  const [people, setPeople] = useState<Array<{ name: string; role: UserRole }>>([{ name: "", role: "intern" }]);
+  const [people, setPeople] = useState<Array<{ name: string }>>([{ name: "" }]);
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
-  const [suggestions, setSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
-  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
   const [currentGreeting, setCurrentGreeting] = useState("");
 
   const greetingMatch = currentGreeting.match(/^([^\w\s]+)?\s*(.*)$/);
@@ -116,24 +59,6 @@ export default function LogForm() {
   useEffect(() => {
     setCurrentGreeting(GREETINGS[Math.floor(Math.random() * GREETINGS.length)]);
   }, [action]);
-
-  useEffect(() => {
-    getLogs(500)
-      .then(setAllLogs)
-      .catch((error) => console.error("Failed to load logs:", error));
-  }, [action]);
-
-  useEffect(() => {
-    getNameSuggestions()
-      .then((loadedSuggestions) => {
-        setSuggestions(loadedSuggestions);
-        setSuggestionsLoaded(true);
-      })
-      .catch((error) => {
-        console.error("Failed to load suggestions:", error);
-        setSuggestionsLoaded(false);
-      });
-  }, []);
 
   const saving = status.kind === "saving";
   const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
@@ -153,14 +78,14 @@ export default function LogForm() {
     }
     playClickSound();
     setAction(null);
-    setPeople([{ name: "", role: "intern" }]);
+    setPeople([{ name: "" }]);
     setImage(null);
     setStatus({ kind: "idle" });
   }
 
   function addPerson() {
     playClickSound();
-    setPeople((current) => [...current, { name: "", role: "intern" }]);
+    setPeople((current) => [...current, { name: "" }]);
   }
 
   function removePerson(index: number) {
@@ -172,114 +97,19 @@ export default function LogForm() {
     setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { ...person, name: value } : person)));
   }
 
-  function updatePersonRole(index: number, role: UserRole) {
-    playClickSound();
-    setPeople((current) =>
-      current.map((person, currentIndex) => {
-        if (currentIndex !== index) return person;
-
-        const selectedNameExistsForRole = suggestions.some(
-          (suggestion) => normalizeRole(suggestion.role) === normalizeRole(role) && normalizeName(suggestion.name) === normalizeName(person.name)
-        );
-
-        return {
-          ...person,
-          role,
-          name: person.name.trim().length === 0 || selectedNameExistsForRole ? person.name : "",
-        };
-      })
-    );
-  }
-
-  function handleSelectSuggestion(index: number, suggestion: { name: string; role: UserRole }) {
-    setPeople((current) => current.map((person, currentIndex) => (currentIndex === index ? { name: suggestion.name, role: suggestion.role } : person)));
-  }
-
   async function handleSave() {
     if (!canSave || !action || !image) return;
-
-    if (suggestionsLoaded) {
-      const roleVerificationError = getRoleVerificationError(people, suggestions, action);
-      if (roleVerificationError) {
-        playErrorSound();
-        setStatus({ kind: "error", message: roleVerificationError });
-        return;
-      }
-    }
 
     setStatus({ kind: "saving" });
 
     try {
-      const createdLogs = await createMultipleLogs(people, action, image);
-      const updatedLogs = [...createdLogs, ...allLogs];
-      setAllLogs(updatedLogs);
-      setSuggestions((current) => mergeSuggestions(current, createdLogs.map(({ name, role }) => ({ name, role }))));
-
-      const welcomeCards = people.map((person) => {
-        const name = person.name.trim();
-        const badges: Array<{ name: string; icon: string; style: string }> = [];
-        const streak = calculateStreak(updatedLogs, name);
-
-        const welcomeMessage =
-          action === "login"
-            ? `Good to see you, ${name}! Let's write some beautiful code today. 🚀`
-            : action === "break"
-              ? `Enjoy your break, ${name}! Go grab a hot drink and relax. ☕`
-              : `Great work today, ${name}! Rest up and have a relaxing evening. 🌙`;
-
-        if (streak >= 5) {
-          badges.push({
-            name: `${streak}-Day Streak`,
-            icon: "🔥",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        } else if (streak >= 3) {
-          badges.push({
-            name: `${streak}-Day Streak`,
-            icon: "⚡",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        } else if (streak > 0 && action === "login") {
-          badges.push({
-            name: `${streak}d Streak`,
-            icon: "⚡",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        }
-
-        const hour = new Date().getHours();
-        if (action === "login" && hour < 9) {
-          badges.push({
-            name: "Early Bird",
-            icon: "🌅",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        }
-
-        if (action === "logout" && hour >= 18) {
-          badges.push({
-            name: "Night Owl",
-            icon: "🌃",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        }
-
-        if (people.length > 1) {
-          badges.push({
-            name: "Team Player",
-            icon: "👥",
-            style: "bg-brand-blue-50 border border-brand-blue-200 text-brand-blue-700",
-          });
-        }
-
-        return { name, welcomeMessage, badges };
-      });
+      await createMultipleLogs(people, action, image);
 
       playSuccessSound();
       setStatus({
         kind: "success",
         message: action === "login" ? "Logged In Successfully!" : action === "break" ? "Break Logged!" : "Logged Out Successfully!",
-        welcomeCards,
+        names: people.map((p) => p.name.trim()).filter(Boolean),
       });
 
       autoResetRef.current = setTimeout(reset, 5000);
@@ -320,7 +150,7 @@ export default function LogForm() {
       </div>
 
       {status.kind === "success" ? (
-        <SuccessCard message={status.message} welcomeCards={status.welcomeCards} />
+        <SuccessCard message={status.message} names={status.names} />
       ) : (
         <>
           {currentGreeting && (
@@ -329,15 +159,11 @@ export default function LogForm() {
 
           <PersonForm
             people={people}
-            allLogs={allLogs}
-            suggestions={suggestions}
             saving={saving}
             maxPeople={MAX_PEOPLE}
             onUpdateName={updatePersonName}
-            onUpdateRole={updatePersonRole}
             onRemove={removePerson}
             onAdd={addPerson}
-            onSelectSuggestion={handleSelectSuggestion}
           />
 
           <div className="flex flex-col gap-2">

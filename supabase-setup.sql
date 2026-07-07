@@ -1,22 +1,20 @@
 -- ============================================================
--- Office Logging — Development Supabase setup
+-- Office Logging — Supabase setup
 -- Run this in the Supabase SQL Editor (Dashboard → SQL Editor).
 -- ============================================================
 
 -- 1. Logs table ----------------------------------------------
 create table if not exists public.logs (
   id         uuid primary key default gen_random_uuid(),
-  name       text not null,
+  name       text not null,         -- AES-256-GCM encrypted
+  name_hash  text not null,         -- SHA-256 deterministic hash for lookups
   type       text not null check (type in ('login', 'logout', 'break')),
-  role       text not null check (role in ('staff', 'intern', 'guest', 'client')),
-  state      text not null default 'out_of_office'
-               check (state in ('in_office', 'out_of_office', 'on_break')),
-  image_url  text not null,
+  image_url  text not null,         -- Signed URL to private storage bucket
   created_at timestamptz not null default now()
 );
 
 create index if not exists logs_created_at_idx on public.logs (created_at desc);
-create index if not exists logs_name_created_at_idx on public.logs (name, created_at desc);
+create index if not exists logs_name_hash_idx on public.logs (name_hash);
 
 -- 2. Admin Activity Logs table --------------------------------
 create table if not exists public.admin_activity_logs (
@@ -28,18 +26,9 @@ create table if not exists public.admin_activity_logs (
 
 create index if not exists admin_activity_logs_created_at_idx on public.admin_activity_logs (created_at desc);
 
--- 3. Users table ----------------------------------------------
-create table if not exists public.users (
-  name       text primary key,
-  role       text not null check (role in ('staff', 'intern', 'guest', 'client')),
-  state      text not null default 'out_of_office'
-               check (state in ('in_office', 'out_of_office', 'on_break')),
-  updated_at timestamptz not null default now()
-);
+-- 3. Row Level Security --------------------------------------
 
--- 4. Row Level Security --------------------------------------
-
--- Logs: kiosk can INSERT (anonymous), only admins can SELECT
+-- Logs: kiosk can INSERT (anonymous), only admins can SELECT/DELETE
 alter table public.logs enable row level security;
 
 create policy "Anyone can insert logs"
@@ -52,21 +41,8 @@ create policy "Admins can read logs"
   to authenticated
   using (true);
 
--- Users: only authenticated users can read / write
-alter table public.users enable row level security;
-
-create policy "Admins can upsert users"
-  on public.users for insert
-  to authenticated
-  with check (true);
-
-create policy "Admins can update users"
-  on public.users for update
-  to authenticated
-  using (true);
-
-create policy "Admins can read users"
-  on public.users for select
+create policy "Admins can delete logs"
+  on public.logs for delete
   to authenticated
   using (true);
 
@@ -83,7 +59,7 @@ create policy "Admins can read activity logs"
   to authenticated
   using (true);
 
--- 6. Admin config table (stores all admin emails) ---------------------------
+-- 4. Admin config table ------------------------------------------
 create table if not exists public.admin_config (
   email      text primary key,
   created_at timestamptz not null default now()
@@ -91,11 +67,14 @@ create table if not exists public.admin_config (
 
 alter table public.admin_config enable row level security;
 
--- Authenticated users can read (only email addresses, not secrets)
-create policy "Authenticated users can read admin_config"
+-- Only existing admins can read the admin list
+create policy "Admins can read admin_config"
   on public.admin_config for select
   to authenticated
-  using (true);
+  using (
+    email = auth.jwt() ->> 'email'
+    or exists (select 1 from public.admin_config where email = auth.jwt() ->> 'email')
+  );
 
 -- Existing admins can add new admins
 create policy "Admins can insert admin_config"
@@ -114,20 +93,21 @@ create policy "Admins can delete admin_config"
 
 -- 5. Storage bucket for photos --------------------------------
 insert into storage.buckets (id, name, public)
-values ('log-images', 'log-images', true)
+values ('log-images', 'log-images', false)
 on conflict (id) do nothing;
 
 -- Drop existing policies (so re-running the script works)
 drop policy if exists "Anyone can upload log images" on storage.objects;
 drop policy if exists "Anyone can read log images" on storage.objects;
 
--- Recreate policies
-create policy "Anyone can upload log images"
+-- Only authenticated users can upload to the bucket
+create policy "Authenticated users can upload log images"
   on storage.objects for insert
-  to anon, authenticated
+  to authenticated
   with check (bucket_id = 'log-images');
 
--- NOTE: No SELECT policy on storage.objects.
--- The bucket is public so existing photo URLs remain accessible,
--- but listing/filtering objects via the API requires authentication.
--- This prevents anonymous data scraping of all stored photos.
+-- Only authenticated users can read from the bucket
+create policy "Authenticated users can read log images"
+  on storage.objects for select
+  to authenticated
+  using (bucket_id = 'log-images');

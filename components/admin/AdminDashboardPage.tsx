@@ -3,20 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions, getAdminConfig, getAdminList, deleteAdmin } from "@/lib/logs";
+import { getLogs, getActivityLogs, createActivityLog, getAdminConfig, getAdminList, deleteAdmin, deleteLog, deleteLogsByDateRange } from "@/lib/logs";
 import { supabase, IS_MOCK } from "@/lib/supabase";
-import type { LogEntry, LogType, UserRole, AdminActivityLog } from "@/lib/supabase";
+import type { LogEntry, LogType, AdminActivityLog } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
 import FilterBar from "./FilterBar";
 import AttendanceTable from "./AttendanceTable";
 import SecurityAuditTable from "./SecurityAuditTable";
 import LogDetailModal from "./LogDetailModal";
-import UserRegistrationPanel from "./UserRegistrationPanel";
 import AdminManagementPanel from "./AdminManagementPanel";
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "name-desc";
 type TypeFilter = "all" | LogType;
-type RoleFilter = "all" | UserRole;
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -25,7 +23,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "registration" | "admin-management">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "admin-management">("attendance");
   const [securityLogs, setSecurityLogs] = useState<AdminActivityLog[]>([]);
   const [securityLoading, setSecurityLoading] = useState(false);
 
@@ -33,11 +31,12 @@ export default function AdminDashboardPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date-desc");
-  const [nameSuggestions, setNameSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
 
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
+  const [massDeleteConfirm, setMassDeleteConfirm] = useState(false);
+  const [massDeleting, setMassDeleting] = useState(false);
+  const [massDeleteResult, setMassDeleteResult] = useState<string | null>(null);
 
   useEffect(() => {
     if (IS_MOCK) {
@@ -56,7 +55,6 @@ export default function AdminDashboardPage() {
           setError(e instanceof Error ? e.message : "Failed to load logs.")
         )
         .finally(() => setLoading(false));
-      getNameSuggestions().then(setNameSuggestions).catch(() => {});
     } else {
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session) {
@@ -81,7 +79,6 @@ export default function AdminDashboardPage() {
             setError(e instanceof Error ? e.message : "Failed to load logs.")
           )
           .finally(() => setLoading(false));
-        getNameSuggestions().then(setNameSuggestions).catch(() => {});
       });
     }
   }, [router]);
@@ -108,6 +105,35 @@ export default function AdminDashboardPage() {
     router.replace("/login");
   }
 
+  async function handleDeleteLog(id: string) {
+    await deleteLog(id);
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    await createActivityLog("DELETE_LOG", `Admin deleted log entry: ${id}`);
+  }
+
+  async function handleMassDelete() {
+    if (!dateFrom || !dateTo) return;
+    setMassDeleting(true);
+    setMassDeleteResult(null);
+    try {
+      const count = await deleteLogsByDateRange(
+        dateFrom,
+        dateTo,
+        typeFilter === "all" ? undefined : typeFilter,
+      );
+      setMassDeleteResult(`Deleted ${count} log entr${count === 1 ? "y" : "ies"} from ${dateFrom} to ${dateTo}.`);
+      await createActivityLog("MASS_DELETE_LOGS", `Admin mass-deleted ${count} logs from ${dateFrom} to ${dateTo}${typeFilter !== "all" ? ` (type: ${typeFilter})` : ""}`);
+      // Refetch logs
+      const fetchedLogs = await getLogs();
+      setLogs(fetchedLogs);
+    } catch (e) {
+      setMassDeleteResult(e instanceof Error ? e.message : "Failed to delete logs.");
+    } finally {
+      setMassDeleting(false);
+      setMassDeleteConfirm(false);
+    }
+  }
+
   const visibleLogs = useMemo(() => {
     const term = search.trim().toLowerCase();
     const fromTs = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
@@ -116,7 +142,6 @@ export default function AdminDashboardPage() {
     const filtered = logs.filter((log) => {
       if (term && !log.name.toLowerCase().includes(term)) return false;
       if (typeFilter !== "all" && log.type !== typeFilter) return false;
-      if (roleFilter !== "all" && log.role !== roleFilter) return false;
       const ts = new Date(log.created_at).getTime();
       if (fromTs !== null && ts < fromTs) return false;
       if (toTs !== null && ts > toTs) return false;
@@ -142,7 +167,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [logs, search, dateFrom, dateTo, typeFilter, roleFilter, sortBy]);
+  }, [logs, search, dateFrom, dateTo, typeFilter, sortBy]);
 
   function clearFilters() {
     playClickSound();
@@ -150,7 +175,6 @@ export default function AdminDashboardPage() {
     setDateFrom("");
     setDateTo("");
     setTypeFilter("all");
-    setRoleFilter("all");
     setSortBy("date-desc");
   }
 
@@ -159,7 +183,6 @@ export default function AdminDashboardPage() {
     dateFrom !== "" ||
     dateTo !== "" ||
     typeFilter !== "all" ||
-    roleFilter !== "all" ||
     sortBy !== "date-desc";
 
   if (!authChecked) {
@@ -220,12 +243,6 @@ export default function AdminDashboardPage() {
           🛡️ Administrative Security Audits
         </button>
         <button
-          onClick={() => { playClickSound(); setActiveTab("registration"); }}
-          className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "registration" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
-        >
-          👤 User Registration
-        </button>
-        <button
           onClick={() => { playClickSound(); setActiveTab("admin-management"); }}
           className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "admin-management" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
         >
@@ -246,20 +263,67 @@ export default function AdminDashboardPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
             typeFilter={typeFilter}
-            roleFilter={roleFilter}
             sortBy={sortBy}
             totalLogs={logs.length}
             visibleCount={visibleLogs.length}
             hasFilters={hasFilters}
-            nameSuggestions={nameSuggestions}
             onSearchChange={setSearch}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
             onTypeFilterChange={setTypeFilter}
-            onRoleFilterChange={setRoleFilter}
             onSortByChange={setSortBy}
             onClearFilters={clearFilters}
           />
+
+          {dateFrom && dateTo && (
+            <div className="z-10 rounded-[18px] border border-red-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-ink-900">Mass Delete</p>
+                  <p className="text-xs text-ink-500 mt-0.5">
+                    {visibleLogs.length} matching entr{visibleLogs.length === 1 ? "y" : "ies"} from {dateFrom} to {dateTo}
+                    {typeFilter !== "all" ? ` (type: ${typeFilter})` : ""}
+                  </p>
+                </div>
+                {!massDeleteConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => { playClickSound(); setMassDeleteConfirm(true); }}
+                    disabled={visibleLogs.length === 0}
+                    className="rounded-xl border border-red-200 bg-white px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    Delete All Matching
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-red-600">Are you sure?</span>
+                    <button
+                      type="button"
+                      onClick={handleMassDelete}
+                      disabled={massDeleting}
+                      className="rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-500 transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {massDeleting ? "Deleting…" : "Confirm"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { playClickSound(); setMassDeleteConfirm(false); }}
+                      disabled={massDeleting}
+                      className="rounded-xl border border-surface-200 bg-white px-4 py-2 text-xs font-bold text-ink-600 hover:bg-surface-50 transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+              {massDeleteResult && (
+                <p className={`mt-3 text-xs font-bold ${massDeleteResult.startsWith("Deleted") ? "text-green-700" : "text-red-600"}`}>
+                  {massDeleteResult}
+                </p>
+              )}
+            </div>
+          )}
+
           <AttendanceTable
             logs={logs}
             visibleLogs={visibleLogs}
@@ -273,16 +337,12 @@ export default function AdminDashboardPage() {
         <SecurityAuditTable logs={securityLogs} loading={securityLoading} />
       )}
 
-      {activeTab === "registration" && (
-        <UserRegistrationPanel />
-      )}
-
       {activeTab === "admin-management" && (
         <AdminManagementPanel />
       )}
 
       {selectedLog && (
-        <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+        <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} onDelete={handleDeleteLog} />
       )}
     </main>
   );

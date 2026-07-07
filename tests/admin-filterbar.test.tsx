@@ -13,20 +13,14 @@ describe("FilterBar", () => {
     dateFrom: "",
     dateTo: "",
     typeFilter: "all" as const,
-    roleFilter: "all" as const,
     sortBy: "date-desc" as const,
     totalLogs: 100,
     visibleCount: 50,
     hasFilters: false,
-    nameSuggestions: [
-      { name: "Alice Vance", role: "staff" as const },
-      { name: "Bob Smith", role: "staff" as const },
-    ],
     onSearchChange: vi.fn(),
     onDateFromChange: vi.fn(),
     onDateToChange: vi.fn(),
     onTypeFilterChange: vi.fn(),
-    onRoleFilterChange: vi.fn(),
     onSortByChange: vi.fn(),
     onClearFilters: vi.fn(),
   };
@@ -37,7 +31,6 @@ describe("FilterBar", () => {
 
   it("renders all filter labels", () => {
     render(<FilterBar {...defaultProps} />);
-    expect(screen.getByText("Role")).toBeInTheDocument();
     expect(screen.getByText("Search name")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
     expect(screen.getByText("From date")).toBeInTheDocument();
@@ -66,14 +59,6 @@ describe("FilterBar", () => {
     render(<FilterBar {...defaultProps} hasFilters={true} onClearFilters={onClearFilters} />);
     await user.click(screen.getByText("Clear all filters"));
     expect(onClearFilters).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls onRoleFilterChange when role is changed", async () => {
-    const onRoleFilterChange = vi.fn();
-    const user = userEvent.setup();
-    render(<FilterBar {...defaultProps} onRoleFilterChange={onRoleFilterChange} />);
-    await user.selectOptions(screen.getByLabelText("Role"), "staff");
-    expect(onRoleFilterChange).toHaveBeenCalledWith("staff");
   });
 
   it("calls onTypeFilterChange when type is changed", async () => {
@@ -107,49 +92,5 @@ describe("FilterBar", () => {
     const fromInput = screen.getByLabelText("From date");
     await user.type(fromInput, "2025-01-01");
     expect(onDateFromChange).toHaveBeenCalled();
-  });
-
-  it("shows suggestions dropdown when search is focused", async () => {
-    const user = userEvent.setup();
-    render(<FilterBar {...defaultProps} />);
-    const searchInput = screen.getByPlaceholderText(/e.g. Alex/i);
-    await user.click(searchInput);
-    expect(screen.getByText("Alice Vance")).toBeInTheDocument();
-    expect(screen.getByText("Bob Smith")).toBeInTheDocument();
-  });
-
-  it("filters suggestions by search term", async () => {
-    const user = userEvent.setup();
-    render(<FilterBar {...defaultProps} search="Bob" />);
-    const searchInput = screen.getByPlaceholderText(/e.g. Alex/i);
-    await user.click(searchInput);
-    expect(screen.queryByText("Alice Vance")).not.toBeInTheDocument();
-    expect(screen.getByText("Bob Smith")).toBeInTheDocument();
-  });
-
-  it("selecting a suggestion calls onSearchChange with the name", async () => {
-    const onSearchChange = vi.fn();
-    const onRoleFilterChange = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <FilterBar
-        {...defaultProps}
-        onSearchChange={onSearchChange}
-        onRoleFilterChange={onRoleFilterChange}
-      />
-    );
-    const searchInput = screen.getByPlaceholderText(/e.g. Alex/i);
-    await user.click(searchInput);
-    await user.click(screen.getByText("Alice Vance"));
-    expect(onSearchChange).toHaveBeenCalledWith("Alice Vance");
-    expect(onRoleFilterChange).toHaveBeenCalledWith("staff");
-  });
-
-  it("does not show suggestions when list is empty", async () => {
-    const user = userEvent.setup();
-    render(<FilterBar {...defaultProps} nameSuggestions={[]} />);
-    const searchInput = screen.getByPlaceholderText(/e.g. Alex/i);
-    await user.click(searchInput);
-    expect(screen.queryByText("Alice Vance")).not.toBeInTheDocument();
   });
 });
