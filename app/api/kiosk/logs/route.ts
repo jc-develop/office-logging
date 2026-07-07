@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `Image upload failed: ${uploadError.message}` }, { status: 500 });
   }
 
-  // Generate signed URL (valid 60 minutes)
+  // Generate signed URL (valid 60 seconds — regenerated on read)
   const { data: signedData, error: signedError } = await admin.storage
     .from(BUCKET)
     .createSignedUrl(path, 60);
@@ -119,13 +119,36 @@ export async function GET(request: NextRequest) {
   }
 
   const { decryptName } = await import("@/lib/crypto");
-  const logs = (data ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id,
-    name: decryptName(row.name as string),
-    type: row.type,
-    image_url: row.image_url,
-    created_at: row.created_at,
-  }));
+
+  // Generate fresh signed URLs at read time so images don't expire
+  const prefix = `/storage/v1/object/sign/${BUCKET}/`;
+  const logs = await Promise.all(
+    (data ?? []).map(async (row: Record<string, unknown>) => {
+      const storedUrl = row.image_url as string;
+      let imageUrl = storedUrl;
+
+      try {
+        const path = new URL(storedUrl).pathname;
+        if (path.startsWith(prefix)) {
+          const filePath = path.slice(prefix.length);
+          const { data: signed } = await admin.storage
+            .from(BUCKET)
+            .createSignedUrl(filePath, 60);
+          if (signed) imageUrl = signed.signedUrl;
+        }
+      } catch {
+        // fall back to stored URL if parsing fails
+      }
+
+      return {
+        id: row.id,
+        name: decryptName(row.name as string),
+        type: row.type,
+        image_url: imageUrl,
+        created_at: row.created_at,
+      };
+    }),
+  );
 
   return NextResponse.json(logs);
 }
