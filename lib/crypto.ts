@@ -3,7 +3,7 @@ import crypto from "crypto";
 const KEY_ENV = "NAME_ENCRYPTION_KEY";
 const PEPPER_ENV = "NAME_HASH_PEPPER";
 
-function getKeyAndAlgo(): { key: Buffer; algo: string } {
+function getKeyAndAlgo(): { key: Buffer; algo: "aes-256-gcm" } | { key: Buffer; algo: "aes-128-gcm" } {
   const hex = process.env[KEY_ENV];
   if (hex) {
     const key = Buffer.from(hex, "hex");
