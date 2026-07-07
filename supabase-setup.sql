@@ -28,36 +28,14 @@ create index if not exists admin_activity_logs_created_at_idx on public.admin_ac
 
 -- 3. Row Level Security --------------------------------------
 
--- Logs: kiosk can INSERT (anonymous), only admins can SELECT/DELETE
+-- Logs: RLS is enabled but no policies are defined.
+-- All access goes through server-side API routes that use the
+-- service_role key (bypasses RLS). Direct client queries via the
+-- anon key are denied by default.
 alter table public.logs enable row level security;
 
-create policy "Anyone can insert logs"
-  on public.logs for insert
-  to anon, authenticated
-  with check (true);
-
-create policy "Admins can read logs"
-  on public.logs for select
-  to authenticated
-  using (true);
-
-create policy "Admins can delete logs"
-  on public.logs for delete
-  to authenticated
-  using (true);
-
--- Admin activity logs: only authenticated users can write / read
+-- Admin activity logs: same approach — server-side API routes only.
 alter table public.admin_activity_logs enable row level security;
-
-create policy "Admins can insert activity logs"
-  on public.admin_activity_logs for insert
-  to authenticated
-  with check (true);
-
-create policy "Admins can read activity logs"
-  on public.admin_activity_logs for select
-  to authenticated
-  using (true);
 
 -- 4. Admin config table ------------------------------------------
 create table if not exists public.admin_config (

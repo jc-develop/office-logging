@@ -1,5 +1,10 @@
 import { supabase, type LogEntry, type LogType, type AdminConfig, type AdminActivityLog, IS_MOCK } from "./supabase";
 
+async function getAuthToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
+
 // ─── Mock: localStorage helpers ────────────────────────────────
 
 function getMockLogs(): LogEntry[] {
@@ -147,12 +152,18 @@ export async function deleteLog(id: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase
-    .from("logs")
-    .delete()
-    .eq("id", id);
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
+  const res = await fetch(`/api/admin/logs/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to delete log (${res.status})`);
+  }
 }
 
 // ─── Delete logs by date range ─────────────────────────────────
@@ -177,20 +188,24 @@ export async function deleteLogsByDateRange(
     return deleted;
   }
 
-  let query = supabase
-    .from("logs")
-    .delete()
-    .gte("created_at", fromDate + "T00:00:00")
-    .lte("created_at", toDate + "T23:59:59.999");
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
 
-  if (type) {
-    query = query.eq("type", type);
+  const params = new URLSearchParams({ from: fromDate, to: toDate });
+  if (type) params.set("type", type);
+
+  const res = await fetch(`/api/admin/logs?${params.toString()}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to delete logs (${res.status})`);
   }
 
-  const { data, error } = await query.select();
-
-  if (error) throw new Error(error.message);
-  return data?.length ?? 0;
+  const { deleted } = await res.json();
+  return deleted;
 }
 
 // ─── Admin audit logs ──────────────────────────────────────────
@@ -203,7 +218,19 @@ export async function createActivityLog(action: string, details: string): Promis
     return;
   }
 
-  await supabase.from("admin_activity_logs").insert({ action, details });
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const res = await fetch("/api/admin/activity-logs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ action, details }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to create activity log (${res.status})`);
+  }
 }
 
 export async function getActivityLogs(limit = 100): Promise<AdminActivityLog[]> {
@@ -211,14 +238,19 @@ export async function getActivityLogs(limit = 100): Promise<AdminActivityLog[]> 
     return getMockActivityLogs().slice(0, limit);
   }
 
-  const { data, error } = await supabase
-    .from("admin_activity_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AdminActivityLog[];
+  const res = await fetch(`/api/admin/activity-logs?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch activity logs (${res.status})`);
+  }
+
+  return res.json() as Promise<AdminActivityLog[]>;
 }
 
 // ─── Admin config ──────────────────────────────────────────────
@@ -237,13 +269,20 @@ export async function getAdminConfig(email?: string): Promise<AdminConfig | null
     return list[0] ?? null;
   }
 
-  let query = supabase.from("admin_config").select("*");
-  if (email) {
-    query = query.eq("email", email);
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const params = email ? `?email=${encodeURIComponent(email)}` : "";
+  const res = await fetch(`/api/admin/config${params}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch admin config (${res.status})`);
   }
-  const { data, error } = await query.maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as AdminConfig | null;
+
+  return res.json() as Promise<AdminConfig | null>;
 }
 
 export async function getAdminList(): Promise<AdminConfig[]> {
@@ -253,13 +292,19 @@ export async function getAdminList(): Promise<AdminConfig[]> {
     return stored ? JSON.parse(stored) : [];
   }
 
-  const { data, error } = await supabase
-    .from("admin_config")
-    .select("*")
-    .order("created_at");
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
 
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AdminConfig[];
+  const res = await fetch("/api/admin/config", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to fetch admin list (${res.status})`);
+  }
+
+  return res.json() as Promise<AdminConfig[]>;
 }
 
 export async function deleteAdmin(email: string): Promise<void> {
@@ -272,6 +317,16 @@ export async function deleteAdmin(email: string): Promise<void> {
     return;
   }
 
-  const { error } = await supabase.from("admin_config").delete().eq("email", email);
-  if (error) throw new Error(error.message);
+  const token = await getAuthToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const res = await fetch(`/api/admin/config/${encodeURIComponent(email)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Failed to delete admin (${res.status})`);
+  }
 }
