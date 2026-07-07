@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import CameraCapture from "@/components/shared/CameraCapture";
+import CameraCapture, { type CameraCaptureHandle, type PhotoStyle, type FaceEffect, PHOTO_STYLES, FACE_EFFECTS } from "@/components/shared/CameraCapture";
+import DateTimeDisplay from "@/components/shared/DateTimeDisplay";
 import ActionSelector from "./ActionSelector";
 import PersonForm from "./PersonForm";
 import SessionGreeting from "./SessionGreeting";
@@ -50,6 +51,9 @@ export default function LogForm() {
   const [people, setPeople] = useState<Array<{ name: string }>>([{ name: "" }]);
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [selectedStyle, setSelectedStyle] = useState<PhotoStyle>("normal");
+  const [selectedFaceEffect, setSelectedFaceEffect] = useState<FaceEffect>("none");
+  const [effectsPopupOpen, setEffectsPopupOpen] = useState(false);
   const [currentGreeting, setCurrentGreeting] = useState("");
 
   const greetingMatch = currentGreeting.match(/^([^\w\s]+)?\s*(.*)$/);
@@ -64,6 +68,7 @@ export default function LogForm() {
   const canSave = !!action && !!image && people.every((person) => person.name.trim().length > 0) && !saving;
   const actionLabel = action ? ACTION_LABEL[action] : "";
   const autoResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cameraRef = useRef<CameraCaptureHandle | null>(null);
 
   function chooseAction(type: LogType) {
     playClickSound();
@@ -81,6 +86,8 @@ export default function LogForm() {
     setPeople([{ name: "" }]);
     setImage(null);
     setStatus({ kind: "idle" });
+    setSelectedStyle("normal");
+    setSelectedFaceEffect("none");
   }
 
   function addPerson() {
@@ -124,7 +131,9 @@ export default function LogForm() {
 
   if (!action) {
     return (
-      <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <div className="flex w-3/5 max-w-[615px] flex-col gap-3 rounded-[18px] border border-surface-200 bg-white p-4 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+        <DateTimeDisplay />
+
         <div className="mx-auto rounded-full bg-brand-blue-50 border border-brand-blue-200 px-3 py-1 text-[11px] font-semibold text-brand-blue-700 tracking-wide shadow-sm">
           {IS_MOCK ? "⚠️ Running in Local Demo Mode" : "⚡ Live Database Connected"}
         </div>
@@ -141,8 +150,10 @@ export default function LogForm() {
   }
 
   return (
-    <div className="flex w-full max-w-xl flex-col gap-6 rounded-[18px] border border-surface-200 bg-white p-6 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
-      <div className="flex items-center justify-between border-b border-surface-100 pb-4">
+    <div className="flex w-[95%] max-w-5xl flex-col gap-3 rounded-[18px] border border-surface-200 bg-white p-4 shadow-[0_12px_30px_-10px_rgba(49,94,239,0.08)] animate-scaleIn">
+      <DateTimeDisplay />
+
+      <div className="flex items-center justify-between border-b border-surface-100 pb-3">
         <span className={`rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider ${ACTION_BADGE[action]}`}>{actionLabel}</span>
         <button type="button" onClick={reset} disabled={saving} className="cursor-pointer text-xs font-bold text-ink-500 transition hover:text-brand-blue-600 disabled:opacity-30">
           ← Change Action
@@ -153,32 +164,115 @@ export default function LogForm() {
         <SuccessCard message={status.message} names={status.names} />
       ) : (
         <>
-          {currentGreeting && (
-            <SessionGreeting emoji={greetingEmoji} text={greetingText} variant="inline" />
-          )}
+          <div className="grid grid-cols-[2fr_3fr] gap-3">
+            <PersonForm
+              people={people}
+              saving={saving}
+              maxPeople={MAX_PEOPLE}
+              onUpdateName={updatePersonName}
+              onRemove={removePerson}
+              onAdd={addPerson}
+            />
 
-          <PersonForm
-            people={people}
-            saving={saving}
-            maxPeople={MAX_PEOPLE}
-            onUpdateName={updatePersonName}
-            onRemove={removePerson}
-            onAdd={addPerson}
-          />
-
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Webcam Verification</label>
-            <CameraCapture onCapture={setImage} />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-ink-500">Webcam Verification</label>
+              <CameraCapture ref={cameraRef} onCapture={setImage} hideControls selectedStyle={selectedStyle} selectedFaceEffect={selectedFaceEffect} onStyleChange={setSelectedStyle} onFaceEffectChange={setSelectedFaceEffect} showEffectsButton onEffectsOpen={() => setEffectsPopupOpen(true)} />
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!canSave}
-            className={`w-full rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer py-4 font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
-          >
-            {saving ? "Logging session details…" : `Save & Complete ${actionLabel}`}
-          </button>
+          {effectsPopupOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn" onClick={() => setEffectsPopupOpen(false)}>
+              <div className="flex w-full max-w-sm flex-col gap-4 rounded-2xl border border-surface-200 bg-white p-5 shadow-2xl animate-scaleIn" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-extrabold uppercase tracking-wider text-ink-700">Effects</span>
+                  <button type="button" onClick={() => setEffectsPopupOpen(false)} className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-ink-400 transition hover:bg-surface-100 hover:text-ink-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Photo Style</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PHOTO_STYLES.map((style) => (
+                        <button
+                          key={style.id}
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            setSelectedStyle(style.id);
+                          }}
+                          className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-xs font-bold transition ${
+                            selectedStyle === style.id
+                              ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
+                              : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
+                          }`}
+                        >
+                          <span className={`h-5 w-5 rounded-full border-2 border-white shadow-sm ${style.swatch}`} />
+                          {style.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Face Filter</span>
+                    <div className="grid grid-cols-3 gap-2">
+                      {FACE_EFFECTS.map((effect) => (
+                        <button
+                          key={effect.id}
+                          type="button"
+                          onClick={() => {
+                            playClickSound();
+                            setSelectedFaceEffect(effect.id);
+                          }}
+                          className={`cursor-pointer rounded-xl border px-3 py-3 text-xs font-bold transition ${
+                            selectedFaceEffect === effect.id
+                              ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
+                              : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
+                          }`}
+                        >
+                          {effect.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!saving && (
+            <div className="flex items-center justify-center gap-3">
+              {image ? (
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.retake()}
+                  className="min-w-[200px] rounded-xl border border-surface-200 bg-white px-8 py-3 text-sm font-bold text-ink-700 transition hover:bg-surface-50 hover:text-brand-blue-600 shadow-sm cursor-pointer"
+                >
+                  🔄 Retake photo
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => cameraRef.current?.capture()}
+                  disabled={!cameraRef.current?.cameraReady || saving}
+                  className="min-w-[200px] rounded-xl bg-brand-blue-600 px-8 py-3 text-sm font-bold text-white shadow-md shadow-brand-blue-100 hover:bg-brand-blue-500 active:scale-98 transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  📷 Capture Photo
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!canSave}
+                className={`min-w-[200px] rounded-xl bg-gradient-to-r ${ACTION_GRADIENT[action]} cursor-pointer px-8 py-3 text-sm font-bold text-white shadow-md transition duration-200 active:scale-98 disabled:cursor-not-allowed disabled:opacity-30`}
+              >
+                {saving ? "Logging…" : `Save & Complete ${actionLabel}`}
+              </button>
+            </div>
+          )}
 
           {status.kind === "error" && (
             <p className="rounded-xl border border-brand-blue-200 bg-brand-blue-50 px-4 py-3 text-center text-xs font-bold text-brand-blue-700 animate-fadeIn">

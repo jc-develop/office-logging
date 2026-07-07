@@ -1,12 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import Webcam from "react-webcam";
 import type { FaceLandmarker } from "@mediapipe/tasks-vision";
 import { playClickSound, playTickSound, playShutterSound } from "@/lib/audio";
 
+export interface CameraCaptureHandle {
+  capture: () => void;
+  retake: () => void;
+  hasImage: boolean;
+  cameraReady: boolean;
+  countdown: number | null;
+  noFaceError: boolean;
+}
+
 interface CameraCaptureProps {
   onCapture: (image: string | null) => void;
+  hideControls?: boolean;
+  selectedStyle?: PhotoStyle;
+  selectedFaceEffect?: FaceEffect;
+  onStyleChange?: (style: PhotoStyle) => void;
+  onFaceEffectChange?: (effect: FaceEffect) => void;
+  showEffectsButton?: boolean;
+  onEffectsOpen?: () => void;
 }
 
 const videoConstraints = {
@@ -15,8 +31,8 @@ const videoConstraints = {
   facingMode: "user",
 };
 
-type PhotoStyle = "normal" | "warm" | "cool" | "vintage" | "mono" | "bright";
-type FaceEffect = "none" | "sunglasses" | "blush" | "sparkle" | "dog";
+export type PhotoStyle = "normal" | "warm" | "cool" | "vintage" | "mono" | "bright";
+export type FaceEffect = "none" | "sunglasses" | "blush" | "sparkle" | "dog";
 
 interface FaceAnchor {
   centerX: number;
@@ -26,7 +42,7 @@ interface FaceAnchor {
   height: number;
 }
 
-const PHOTO_STYLES: Array<{ id: PhotoStyle; label: string; filter: string; swatch: string }> = [
+export const PHOTO_STYLES: Array<{ id: PhotoStyle; label: string; filter: string; swatch: string }> = [
   { id: "normal", label: "Normal", filter: "none", swatch: "bg-surface-100" },
   { id: "warm", label: "Warm", filter: "sepia(0.18) saturate(1.35) contrast(1.05) brightness(1.05)", swatch: "bg-amber-200" },
   { id: "cool", label: "Cool", filter: "saturate(1.15) hue-rotate(188deg) brightness(1.03)", swatch: "bg-sky-200" },
@@ -35,7 +51,7 @@ const PHOTO_STYLES: Array<{ id: PhotoStyle; label: string; filter: string; swatc
   { id: "bright", label: "Bright", filter: "brightness(1.16) contrast(1.04) saturate(1.18)", swatch: "bg-emerald-200" },
 ];
 
-const FACE_EFFECTS: Array<{ id: FaceEffect; label: string }> = [
+export const FACE_EFFECTS: Array<{ id: FaceEffect; label: string }> = [
   { id: "none", label: "None" },
   { id: "sunglasses", label: "Shades" },
   { id: "blush", label: "Blush" },
@@ -234,7 +250,7 @@ function drawFaceEffect(context: CanvasRenderingContext2D, effect: FaceEffect, f
   anchors.forEach((anchor) => drawSingleFaceEffect(context, effect, anchor, width, height));
 }
 
-export default function CameraCapture({ onCapture }: CameraCaptureProps) {
+const CameraCapture = forwardRef<CameraCaptureHandle, CameraCaptureProps>(function CameraCapture({ onCapture, hideControls = false, selectedStyle, selectedFaceEffect, onStyleChange, onFaceEffectChange, showEffectsButton, onEffectsOpen }: CameraCaptureProps, ref) {
   const webcamRef = useRef<Webcam>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const trackingFrameRef = useRef<number | null>(null);
@@ -244,15 +260,37 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
-  const [selectedStyle, setSelectedStyle] = useState<PhotoStyle>("normal");
-  const [selectedFaceEffect, setSelectedFaceEffect] = useState<FaceEffect>("none");
+  const [internalStyle, setInternalStyle] = useState<PhotoStyle>("normal");
+  const [internalFaceEffect, setInternalFaceEffect] = useState<FaceEffect>("none");
   const [faceAnchors, setFaceAnchors] = useState<FaceAnchor[]>([]);
+
+  const effectiveStyle = selectedStyle ?? internalStyle;
+  const effectiveFaceEffect = selectedFaceEffect ?? internalFaceEffect;
   const faceAnchorsRef = useRef(faceAnchors);
   faceAnchorsRef.current = faceAnchors;
+  const selectedPhotoStyle = PHOTO_STYLES.find((style) => style.id === effectiveStyle) ?? PHOTO_STYLES[0];
+  const filterRef = useRef(selectedPhotoStyle.filter);
+  filterRef.current = selectedPhotoStyle.filter;
+  const faceEffectRef = useRef(effectiveFaceEffect);
+  faceEffectRef.current = effectiveFaceEffect;
   const [trackingReady, setTrackingReady] = useState(false);
   const [noFaceError, setNoFaceError] = useState(false);
 
-  const selectedPhotoStyle = PHOTO_STYLES.find((style) => style.id === selectedStyle) ?? PHOTO_STYLES[0];
+  const handleStyleChange = useCallback((style: PhotoStyle) => {
+    if (onStyleChange) {
+      onStyleChange(style);
+    } else {
+      setInternalStyle(style);
+    }
+  }, [onStyleChange]);
+
+  const handleFaceEffectChange = useCallback((effect: FaceEffect) => {
+    if (onFaceEffectChange) {
+      onFaceEffectChange(effect);
+    } else {
+      setInternalFaceEffect(effect);
+    }
+  }, [onFaceEffectChange]);
 
   useEffect(() => {
     let cancelled = false;
@@ -363,7 +401,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         cancelAnimationFrame(trackingFrameRef.current);
       }
     };
-  }, [cameraReady, image, selectedFaceEffect, trackingReady]);
+  }, [cameraReady, image, effectiveFaceEffect, trackingReady]);
 
   const captureFilteredImage = useCallback(() => {
     const video = webcamRef.current?.video;
@@ -379,14 +417,14 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     context.save();
     context.translate(canvas.width, 0);
     context.scale(-1, 1);
-    context.filter = selectedPhotoStyle.filter;
+    context.filter = filterRef.current;
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     context.restore();
 
-    drawFaceEffect(context, selectedFaceEffect, faceAnchors, canvas.width, canvas.height);
+    drawFaceEffect(context, faceEffectRef.current, faceAnchorsRef.current, canvas.width, canvas.height);
 
     return canvas.toDataURL("image/png", 1);
-  }, [faceAnchors, selectedFaceEffect, selectedPhotoStyle.filter]);
+  }, []);
 
   const startCountdown = useCallback(() => {
     if (countdown !== null) return;
@@ -432,9 +470,18 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
     onCapture(null);
   }, [onCapture]);
 
+  useImperativeHandle(ref, () => ({
+    capture: startCountdown,
+    retake,
+    hasImage: !!image,
+    cameraReady,
+    countdown,
+    noFaceError,
+  }), [startCountdown, retake, image, cameraReady, countdown, noFaceError]);
+
   return (
-    <div className="flex flex-col items-center gap-4 w-full animate-fadeIn">
-      <div className="relative w-full max-w-[480px] aspect-[4/3] overflow-hidden rounded-[18px] border border-surface-200 bg-surface-100 shadow-inner">
+    <div className="flex w-full animate-fadeIn flex-col items-center gap-4">
+      <div className={`relative aspect-[4/3] w-full overflow-hidden rounded-[18px] border border-surface-200 bg-surface-100 shadow-inner ${!hideControls ? 'max-w-[480px]' : ''}`}>
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -462,13 +509,13 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
           />
         )}
 
-        {!image && selectedFaceEffect !== "none" && (
+        {!image && effectiveFaceEffect !== "none" && (
           <div className="pointer-events-none absolute inset-0 z-10">
-            <LiveFaceEffect effect={selectedFaceEffect} faces={faceAnchors} trackingReady={trackingReady} />
+            <LiveFaceEffect effect={effectiveFaceEffect} faces={faceAnchors} trackingReady={trackingReady} />
           </div>
         )}
 
-        {!image && !noFaceError && faceAnchors.length > 0 && selectedFaceEffect === "none" && (
+        {!image && !noFaceError && faceAnchors.length > 0 && effectiveFaceEffect === "none" && (
           <div className="pointer-events-none absolute inset-0 z-10">
             {faceAnchors.map((anchor, index) => (
               <div
@@ -517,28 +564,41 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
             ⚠️ {error}
           </div>
         )}
+
+        {showEffectsButton && !image && (
+          <button
+            type="button"
+            onClick={onEffectsOpen}
+            className="absolute bottom-5 left-6 z-40 flex cursor-pointer flex-col items-center gap-1"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/60 bg-black/30 shadow-lg backdrop-blur-sm transition hover:bg-black/45 active:scale-95">
+              <img src="/effects.png" alt="" className="h-6 w-6" />
+            </div>
+            <span className="text-[10px] font-extrabold uppercase tracking-tight text-white drop-shadow-lg">Effects</span>
+          </button>
+        )}
       </div>
 
-      {!image && (
-        <div className="flex w-full max-w-[480px] flex-col gap-3">
+      {!image && !hideControls && (
+        <div className="w-full max-w-[480px] flex-col gap-3 flex">
           <div className="flex flex-col gap-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-ink-500">Photo Style</span>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
               {PHOTO_STYLES.map((style) => (
                 <button
                   key={style.id}
                   type="button"
                   onClick={() => {
                     playClickSound();
-                    setSelectedStyle(style.id);
+                    handleStyleChange(style.id);
                   }}
-                  className={`flex min-h-12 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
-                    selectedStyle === style.id
+                  className={`flex min-h-12 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-2 text-[10px] font-bold transition ${
+                    effectiveStyle === style.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
                       : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
                   }`}
                 >
-                  <span className={`h-3 w-3 rounded-full border border-white shadow-sm ${style.swatch}`} />
+                  <span className={`h-3.5 w-3.5 rounded-full border border-white shadow-sm ${style.swatch}`} />
                   {style.label}
                 </button>
               ))}
@@ -553,20 +613,20 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
                   ● {faceAnchors.length > 0 ? "Face detected" : "No face detected"}
                 </span>
               ) : (
-                <span className="text-[10px] font-semibold text-ink-400">Loading detection…</span>
+                <span className="text-[10px] font-semibold text-ink-400">Loading…</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
               {FACE_EFFECTS.map((effect) => (
                 <button
                   key={effect.id}
                   type="button"
                   onClick={() => {
                     playClickSound();
-                    setSelectedFaceEffect(effect.id);
+                    handleFaceEffectChange(effect.id);
                   }}
-                  className={`min-h-10 cursor-pointer rounded-xl border px-2 py-2 text-[10px] font-bold transition ${
-                    selectedFaceEffect === effect.id
+                  className={`cursor-pointer rounded-lg border min-h-10 px-2 py-2 text-[10px] font-bold transition ${
+                    effectiveFaceEffect === effect.id
                       ? "border-brand-blue-500 bg-brand-blue-50 text-brand-blue-700 shadow-sm"
                       : "border-surface-200 bg-white text-ink-500 hover:border-brand-blue-200"
                   }`}
@@ -579,7 +639,7 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
         </div>
       )}
 
-      {image ? (
+      {!hideControls && (image ? (
         <button
           type="button"
           onClick={retake}
@@ -600,10 +660,12 @@ export default function CameraCapture({ onCapture }: CameraCaptureProps) {
               ? "📷 Try Again"
               : "📷 Capture Photo"}
         </button>
-      )}
+      ))}
     </div>
   );
-}
+});
+
+export default CameraCapture;
 
 function LiveFaceEffect({ effect, faces, trackingReady }: { effect: FaceEffect; faces: FaceAnchor[]; trackingReady: boolean }) {
   const anchors = faces.length > 0 ? faces : [getFallbackFace()];

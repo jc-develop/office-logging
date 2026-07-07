@@ -12,24 +12,9 @@ export default function KioskPage() {
 
       <KioskNavbar />
 
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
-        <div className="flex w-full flex-col items-center gap-8">
-          <div className="text-center animate-fadeIn">
-            <h1 className="font-display text-4xl font-extrabold tracking-tight text-ink-900 sm:text-5xl">
-              StartupLab Office Logging
-            </h1>
-            <p className="mt-3 text-sm text-ink-500 max-w-md mx-auto leading-relaxed">
-              Welcome to the StartupLab workspace. Please select an action below to begin your logging session.
-            </p>
-          </div>
-
-          <LogForm />
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-2 py-2">
+        <LogForm />
       </div>
-
-      <footer className="py-4 text-center text-ink-400 text-[11px] pointer-events-none font-medium tracking-wide">
-        StartupLab Kiosk System • Privacy & GDPR Compliant • Powered by Supabase
-      </footer>
     </main>
   );
 }

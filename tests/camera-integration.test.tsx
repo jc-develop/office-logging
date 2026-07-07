@@ -145,14 +145,13 @@ describe("Camera + LogForm Integration", () => {
     expect(screen.getByTestId("webcam")).toBeInTheDocument();
   });
 
-  it("shows photo style and face filter controls after action selection", async () => {
+  it("shows effects button on the camera after action selection", async () => {
     const user = userEvent.setup();
     render(<LogForm />);
 
     await user.click(screen.getByText("Log In"));
 
-    expect(screen.getByText("Photo Style")).toBeInTheDocument();
-    expect(screen.getByText("Face Filter")).toBeInTheDocument();
+    expect(screen.getByText("Effects")).toBeInTheDocument();
   });
 
   it("disables save button until camera captures a photo", async () => {
@@ -220,7 +219,8 @@ describe("Camera + LogForm Integration", () => {
     await user.click(screen.getByText("Log In"));
     simulateCameraReady();
 
-    // Select a face effect
+    // Open effects popup and select a face effect
+    await user.click(screen.getByText("Effects"));
     const shadesBtn = screen.getByText("Shades");
     await user.click(shadesBtn);
 
@@ -257,7 +257,8 @@ describe("Camera + LogForm Integration", () => {
     // Default style is "Normal" - filter should be "none"
     expect(webcam).toHaveStyle({ filter: "none" });
 
-    // Click "Warm"
+    // Open effects popup and click "Warm"
+    await user.click(screen.getByText("Effects"));
     await user.click(screen.getByText("Warm"));
     expect(webcam).toHaveStyle({ filter: "sepia(0.18) saturate(1.35) contrast(1.05) brightness(1.05)" });
   });

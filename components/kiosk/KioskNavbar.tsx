@@ -1,24 +1,25 @@
 import Image from "next/image";
 import Link from "next/link";
-import DateTimeDisplay from "@/components/shared/DateTimeDisplay";
 
 export default function KioskNavbar() {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3 border-b border-surface-200 bg-white/70 px-4 py-3 backdrop-blur-md shadow-sm sm:px-6 sm:py-4">
-      <div className="flex items-center gap-3">
-        <div className="relative h-14 w-14 sm:h-20 sm:w-20 flex-shrink-0">
-          <Image src="/Company_Logo.png" alt="Company logo" fill className="object-contain" />
+    <header className="relative flex items-center justify-between gap-2 border-b border-surface-200 bg-white/70 px-3 py-2 backdrop-blur-md shadow-sm sm:px-4 sm:py-2.5">
+      <div className="flex items-center gap-2">
+        <div className="relative h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
+          <Image src="/StartupLabLogo.png" alt="Company logo" fill className="object-contain" />
         </div>
-        <div className="relative h-20 w-[240px] sm:h-24 sm:w-[150px] -translate-x-3 sm:-translate-x-5">
-          <Image src="/Company_Text_Black.png" alt="StartupLab Business Center" fill className="object-contain" />
+        <div className="relative h-6 w-[120px] sm:h-8 sm:w-[140px] -translate-x-1">
+          <Image src="/StartupLabTextLogo.png" alt="StartupLab Business Center" fill className="object-contain" />
         </div>
       </div>
 
-      <DateTimeDisplay />
+      <h1 className="absolute left-1/2 -translate-x-1/2 font-display text-base font-extrabold tracking-tight text-ink-900 sm:text-lg">
+        Office Kiosk
+      </h1>
 
       <Link
         href="/login"
-        className="rounded-xl border border-surface-200 bg-white px-4 py-1.5 text-xs font-semibold text-ink-700 transition hover:border-brand-blue-300 hover:bg-brand-blue-50/50 hover:text-brand-blue-600 shadow-sm"
+        className="rounded-xl border border-surface-200 bg-white px-3 py-1 text-[10px] font-semibold text-ink-700 transition hover:border-brand-blue-300 hover:bg-brand-blue-50/50 hover:text-brand-blue-600 shadow-sm sm:px-4 sm:py-1.5 sm:text-xs"
       >
         🔑 Admin Portal
       </Link>
