@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function KioskNavbar() {
   return (
-    <header className="flex items-center justify-between gap-2 border-b border-surface-200 bg-white/70 px-3 py-2 backdrop-blur-md shadow-sm sm:px-4 sm:py-2.5">
+    <header className="relative flex items-center justify-between gap-2 border-b border-surface-200 bg-white/70 px-3 py-2 backdrop-blur-md shadow-sm sm:px-4 sm:py-2.5">
       <div className="flex items-center gap-2">
         <div className="relative h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0">
           <Image src="/StartupLabLogo.png" alt="Company logo" fill className="object-contain" />
@@ -13,8 +13,8 @@ export default function KioskNavbar() {
         </div>
       </div>
 
-      <h1 className="font-display text-base font-extrabold tracking-tight text-ink-900 sm:text-lg">
-        StartupLab Office Logging
+      <h1 className="absolute left-1/2 -translate-x-1/2 font-display text-base font-extrabold tracking-tight text-ink-900 sm:text-lg">
+        Office Kiosk
       </h1>
 
       <Link

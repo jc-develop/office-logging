@@ -30,7 +30,7 @@ describe("KioskNavbar", () => {
 
   it("renders the title heading", () => {
     render(<KioskNavbar />);
-    expect(screen.getByText("StartupLab Office Logging")).toBeInTheDocument();
+    expect(screen.getByText("Office Kiosk")).toBeInTheDocument();
   });
 
   it("renders the Admin Portal link", () => {
