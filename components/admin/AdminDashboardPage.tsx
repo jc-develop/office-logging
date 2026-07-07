@@ -3,20 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getLogs, getActivityLogs, createActivityLog, getNameSuggestions, getAdminConfig, getAdminList, deleteAdmin } from "@/lib/logs";
+import { getLogs, getActivityLogs, createActivityLog, getAdminConfig, getAdminList, deleteAdmin, deleteLog } from "@/lib/logs";
 import { supabase, IS_MOCK } from "@/lib/supabase";
-import type { LogEntry, LogType, UserRole, AdminActivityLog } from "@/lib/supabase";
+import type { LogEntry, LogType, AdminActivityLog } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
 import FilterBar from "./FilterBar";
 import AttendanceTable from "./AttendanceTable";
 import SecurityAuditTable from "./SecurityAuditTable";
 import LogDetailModal from "./LogDetailModal";
-import UserRegistrationPanel from "./UserRegistrationPanel";
 import AdminManagementPanel from "./AdminManagementPanel";
 
 type SortKey = "date-desc" | "date-asc" | "name-asc" | "name-desc";
 type TypeFilter = "all" | LogType;
-type RoleFilter = "all" | UserRole;
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -25,7 +23,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "registration" | "admin-management">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "security" | "admin-management">("attendance");
   const [securityLogs, setSecurityLogs] = useState<AdminActivityLog[]>([]);
   const [securityLoading, setSecurityLoading] = useState(false);
 
@@ -33,9 +31,7 @@ export default function AdminDashboardPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [sortBy, setSortBy] = useState<SortKey>("date-desc");
-  const [nameSuggestions, setNameSuggestions] = useState<Array<{ name: string; role: UserRole }>>([]);
 
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null);
 
@@ -56,7 +52,6 @@ export default function AdminDashboardPage() {
           setError(e instanceof Error ? e.message : "Failed to load logs.")
         )
         .finally(() => setLoading(false));
-      getNameSuggestions().then(setNameSuggestions).catch(() => {});
     } else {
       supabase.auth.getSession().then(async ({ data: { session } }) => {
         if (!session) {
@@ -81,7 +76,6 @@ export default function AdminDashboardPage() {
             setError(e instanceof Error ? e.message : "Failed to load logs.")
           )
           .finally(() => setLoading(false));
-        getNameSuggestions().then(setNameSuggestions).catch(() => {});
       });
     }
   }, [router]);
@@ -108,6 +102,12 @@ export default function AdminDashboardPage() {
     router.replace("/login");
   }
 
+  async function handleDeleteLog(id: string) {
+    await deleteLog(id);
+    setLogs((prev) => prev.filter((l) => l.id !== id));
+    await createActivityLog("DELETE_LOG", `Admin deleted log entry: ${id}`);
+  }
+
   const visibleLogs = useMemo(() => {
     const term = search.trim().toLowerCase();
     const fromTs = dateFrom ? new Date(dateFrom + "T00:00:00").getTime() : null;
@@ -116,7 +116,6 @@ export default function AdminDashboardPage() {
     const filtered = logs.filter((log) => {
       if (term && !log.name.toLowerCase().includes(term)) return false;
       if (typeFilter !== "all" && log.type !== typeFilter) return false;
-      if (roleFilter !== "all" && log.role !== roleFilter) return false;
       const ts = new Date(log.created_at).getTime();
       if (fromTs !== null && ts < fromTs) return false;
       if (toTs !== null && ts > toTs) return false;
@@ -142,7 +141,7 @@ export default function AdminDashboardPage() {
     });
 
     return sorted;
-  }, [logs, search, dateFrom, dateTo, typeFilter, roleFilter, sortBy]);
+  }, [logs, search, dateFrom, dateTo, typeFilter, sortBy]);
 
   function clearFilters() {
     playClickSound();
@@ -150,7 +149,6 @@ export default function AdminDashboardPage() {
     setDateFrom("");
     setDateTo("");
     setTypeFilter("all");
-    setRoleFilter("all");
     setSortBy("date-desc");
   }
 
@@ -159,7 +157,6 @@ export default function AdminDashboardPage() {
     dateFrom !== "" ||
     dateTo !== "" ||
     typeFilter !== "all" ||
-    roleFilter !== "all" ||
     sortBy !== "date-desc";
 
   if (!authChecked) {
@@ -220,12 +217,6 @@ export default function AdminDashboardPage() {
           🛡️ Administrative Security Audits
         </button>
         <button
-          onClick={() => { playClickSound(); setActiveTab("registration"); }}
-          className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "registration" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
-        >
-          👤 User Registration
-        </button>
-        <button
           onClick={() => { playClickSound(); setActiveTab("admin-management"); }}
           className={`px-5 py-3 text-sm font-bold border-b-2 transition ${activeTab === "admin-management" ? "border-brand-blue-600 text-brand-blue-600" : "border-transparent text-ink-500 hover:text-ink-700"}`}
         >
@@ -246,17 +237,14 @@ export default function AdminDashboardPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
             typeFilter={typeFilter}
-            roleFilter={roleFilter}
             sortBy={sortBy}
             totalLogs={logs.length}
             visibleCount={visibleLogs.length}
             hasFilters={hasFilters}
-            nameSuggestions={nameSuggestions}
             onSearchChange={setSearch}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
             onTypeFilterChange={setTypeFilter}
-            onRoleFilterChange={setRoleFilter}
             onSortByChange={setSortBy}
             onClearFilters={clearFilters}
           />
@@ -273,16 +261,12 @@ export default function AdminDashboardPage() {
         <SecurityAuditTable logs={securityLogs} loading={securityLoading} />
       )}
 
-      {activeTab === "registration" && (
-        <UserRegistrationPanel />
-      )}
-
       {activeTab === "admin-management" && (
         <AdminManagementPanel />
       )}
 
       {selectedLog && (
-        <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} />
+        <LogDetailModal log={selectedLog} onClose={() => setSelectedLog(null)} onDelete={handleDeleteLog} />
       )}
     </main>
   );

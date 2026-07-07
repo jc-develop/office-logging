@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { calculateStreak } from "@/lib/logs";
 import type { LogEntry, LogType } from "@/lib/supabase";
 import { playClickSound } from "@/lib/audio";
 import Pagination from "./Pagination";
@@ -75,9 +74,7 @@ export default function AttendanceTable({ logs, visibleLogs, loading, onSelectLo
           <tr>
             <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Photo</th>
             <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Name</th>
-            <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Role</th>
             <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Action</th>
-            <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Streak / Badges</th>
             <th className="px-5 py-4 font-bold uppercase tracking-wider text-xs">Time</th>
             <th className="px-5 py-4 font-bold uppercase tracking-wider text-right text-xs">Inspect</th>
           </tr>
@@ -100,44 +97,10 @@ export default function AttendanceTable({ logs, visibleLogs, loading, onSelectLo
               <td className="px-5 py-3 font-bold text-ink-900">
                 {log.name}
               </td>
-              <td className="px-5 py-3 text-ink-600 capitalize font-medium">
-                {log.role || "intern"}
-              </td>
               <td className="px-5 py-3">
                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${TYPE_BADGE[log.type]}`}>
                   {TYPE_LABEL[log.type]}
                 </span>
-              </td>
-              <td className="px-5 py-3">
-                <div className="flex flex-wrap gap-1">
-                  {(() => {
-                    const streak = calculateStreak(logs, log.name);
-                    const badges: string[] = [];
-
-                    const logDate = new Date(log.created_at);
-                    const hours = logDate.getHours();
-                    if (log.type === "login" && hours < 9) {
-                      badges.push("🌅 Early Bird");
-                    } else if (log.type === "logout" && hours >= 18) {
-                      badges.push("🌃 Night Owl");
-                    }
-
-                    return (
-                      <>
-                        {streak > 0 && log.type === "login" && (
-                          <span className="rounded-full bg-brand-blue-50 border border-brand-blue-200 px-2.5 py-0.5 text-[9px] font-bold text-brand-blue-700 uppercase tracking-wide">
-                            🔥 {streak}d Streak
-                          </span>
-                        )}
-                        {badges.map((badge, bIdx) => (
-                          <span key={bIdx} className="rounded-full bg-brand-blue-50/50 border border-brand-blue-100 px-2.5 py-0.5 text-[9px] font-bold text-brand-blue-600 uppercase tracking-wide">
-                            {badge}
-                          </span>
-                        ))}
-                      </>
-                    );
-                  })()}
-                </div>
               </td>
               <td className="px-5 py-3 text-ink-500 font-medium">
                 {new Date(log.created_at).toLocaleString()}

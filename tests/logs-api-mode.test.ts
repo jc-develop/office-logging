@@ -12,11 +12,6 @@ const MOCK_LOGS = [
   },
 ];
 
-const MOCK_SUGGESTIONS = [
-  { name: "Alice", role: "staff" },
-  { name: "Bob", role: "intern" },
-];
-
 describe("getLogs in production mode", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
@@ -79,56 +74,5 @@ describe("getLogs in production mode", () => {
     const { getLogs } = await import("@/lib/logs");
 
     await expect(getLogs(10)).rejects.toThrow("Failed to fetch logs (500)");
-  });
-});
-
-describe("getNameSuggestions in production mode", () => {
-  beforeEach(() => {
-    vi.unstubAllEnvs();
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://real-project.supabase.co");
-    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.real-key");
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("calls /api/kiosk/users and returns suggestions", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(MOCK_SUGGESTIONS),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { getNameSuggestions } = await import("@/lib/logs");
-    const result = await getNameSuggestions();
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/kiosk/users");
-    expect(result).toEqual(MOCK_SUGGESTIONS);
-  });
-
-  it("returns empty array on non-ok response (graceful fallback)", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-      statusText: "Internal Server Error",
-      json: () => Promise.resolve({ error: "DB error" }),
-    });
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { getNameSuggestions: gns } = await import("@/lib/logs");
-    const result = await gns();
-
-    expect(result).toEqual([]);
-  });
-
-  it("returns empty array when fetch throws", async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new Error("Network error"));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { getNameSuggestions: gns } = await import("@/lib/logs");
-    const result = await gns();
-
-    expect(result).toEqual([]);
   });
 });

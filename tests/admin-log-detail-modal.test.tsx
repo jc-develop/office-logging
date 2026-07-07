@@ -8,8 +8,6 @@ const mockLog: LogEntry = {
   id: "test-id-123",
   name: "Test Person",
   type: "login",
-  role: "staff",
-  state: "in_office",
   image_url: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
   created_at: "2025-06-15T10:30:00.000Z",
 };
@@ -29,11 +27,6 @@ describe("LogDetailModal", () => {
   it("renders action type badge", () => {
     render(<LogDetailModal log={mockLog} onClose={onClose} />);
     expect(screen.getByText("Log In")).toBeInTheDocument();
-  });
-
-  it("renders role", () => {
-    render(<LogDetailModal log={mockLog} onClose={onClose} />);
-    expect(screen.getByText("staff")).toBeInTheDocument();
   });
 
   it("renders the log image", () => {

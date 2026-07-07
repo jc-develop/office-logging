@@ -61,20 +61,16 @@ vi.mock("react-webcam", () => ({
 }));
 
 // Hoisted mock variables — needed because vi.mock factory is hoisted above imports
-const { mockCreateLogs, mockCalculateStreak, mockGetLogs, mockGetNameSuggestions } = vi.hoisted(() => ({
+const { mockCreateLogs, mockGetLogs } = vi.hoisted(() => ({
   mockCreateLogs: vi.fn(),
-  mockCalculateStreak: vi.fn(),
   mockGetLogs: vi.fn<(limit: number) => Promise<LogEntry[]>>().mockResolvedValue([]),
-  mockGetNameSuggestions: vi.fn<() => Promise<Array<{ name: string; role: string }>>>().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/logs", async () => {
   const actual = await vi.importActual<typeof import("@/lib/logs")>("@/lib/logs");
   return {
     ...actual,
-    getNameSuggestions: mockGetNameSuggestions,
     getLogs: mockGetLogs,
-    calculateStreak: mockCalculateStreak,
     createMultipleLogs: mockCreateLogs,
   };
 });
@@ -116,8 +112,6 @@ beforeEach(() => {
   mockVideo.readyState = 4;
 
   mockGetLogs.mockResolvedValue([]);
-  mockGetNameSuggestions.mockResolvedValue([]);
-  mockCalculateStreak.mockReturnValue(0);
 
   mockDetectForVideo.mockReturnValue({ faceLandmarks: [[{ x: 0.5, y: 0.5, z: 0 }]] });
 });
@@ -182,9 +176,8 @@ describe("Camera + LogForm Integration", () => {
   it("capturing photo enables save button and submits logs", async () => {
     const user = userEvent.setup();
 
-    mockGetNameSuggestions.mockResolvedValue([{ name: "Test User", role: "intern" }]);
     mockCreateLogs.mockResolvedValue([
-      { id: "1", name: "Test User", type: "login", role: "intern", state: "in_office", image_url: "data:image/png,...", created_at: new Date().toISOString() },
+      { id: "1", name: "Test User", type: "login", image_url: "data:image/png,...", created_at: new Date().toISOString() },
     ] as LogEntry[]);
 
     render(<LogForm />);
@@ -219,9 +212,8 @@ describe("Camera + LogForm Integration", () => {
   it("captures photo with face effect selected and still submits successfully", async () => {
     const user = userEvent.setup();
 
-    mockGetNameSuggestions.mockResolvedValue([{ name: "Face Test User", role: "intern" }]);
     mockCreateLogs.mockResolvedValue([
-      { id: "2", name: "Face Test User", type: "login", role: "intern", state: "in_office", image_url: "data:image/png,...", created_at: new Date().toISOString() },
+      { id: "2", name: "Face Test User", type: "login", image_url: "data:image/png,...", created_at: new Date().toISOString() },
     ] as LogEntry[]);
 
     render(<LogForm />);
